@@ -1,5 +1,5 @@
 // Service worker del Cancionero. Subir la versión aquí, en version.json y en index.html en cada cambio.
-const VERSION = '1.2.0';
+const VERSION = '1.3.0';
 const CACHE = `cancionero-v${VERSION}`;
 
 const PRECACHE = [
@@ -23,9 +23,11 @@ const PRECACHE = [
   'js/ui.js',
   'js/util.js',
   'fonts/inter-latin-wght-normal.woff2',
-  'icons/icon-192.png',
-  'icons/icon-512.png',
-  'icons/apple-touch-icon.png',
+  'icons/cancionero-192.png',
+  'icons/cancionero-512.png',
+  'icons/apple-touch-icon-cancionero.png',
+  'icons/cancionero-maskable-512.png',
+  'icons/favicon-32.png',
   'libs/dexie.min.js',
   'libs/tesseract.min.js',
   'libs/worker.min.js',

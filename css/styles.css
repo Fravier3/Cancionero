@@ -1209,3 +1209,6 @@ html, body, #app, .topbar, .tabbar { background: #fff; color-scheme: only light;
 .reader-scroll h2 {font-size:28px;}.reader-bar {flex:none;}.mass-reader-nav{flex:none;}
 @media(min-width:900px){.reader-scroll{padding-left:max(28px,calc((100vw - 900px)/2));padding-right:max(28px,calc((100vw - 900px)/2));}.reading-cards{grid-template-columns:1fr 1fr;}}
 @media(max-width:370px){.brand h1{font-size:18px;}.mode-pill{padding:8px;font-size:12px;}.reader-actions{gap:2px;}.reader-actions .size-btn{min-width:42px;}.reader-actions .icon-btn{width:38px;}}
+
+.brand-mark {overflow:hidden;}
+.brand-mark img {display:block;width:100%;height:100%;object-fit:cover;border-radius:inherit;}
