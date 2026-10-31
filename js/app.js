@@ -367,8 +367,9 @@ function renderCatSelect() {
     `<option value="${NEW_CATEGORY}">＋ Añadir categoría nueva…</option>`,
   ];
   el.cat.innerHTML = options.join('');
-  el.cat.value='';const ids=categoryIds(d);$('#category-checks').innerHTML=state.cats.map(c=>`<label><input type="checkbox" value="${c.id}" ${ids.includes(c.id)?'checked':''}><span>${esc(c.name)}</span></label>`).join('');
+  el.cat.value='';const ids=categoryIds(d);updateCategorySummary();$('#category-checks').innerHTML=state.cats.map(c=>`<label><input type="checkbox" value="${c.id}" ${ids.includes(c.id)?'checked':''}><span>${esc(c.name)}</span></label>`).join('')+(d.categorySuggested?`<label><input type="checkbox" value="__suggested__" checked><span>${esc(d.categorySuggested)} (sugerida)</span></label>`:'');
 }
+function updateCategorySummary(){const d=currentDraft()??drafts.fresh;const names=categoryLabels(d,state.cats);if(d.categorySuggested)names.push(d.categorySuggested);$('#category-summary').textContent=names.join(' · ')||'Sin categoría';}
 
 function updateFirstLineButton() {
   const d = currentDraft();
@@ -932,7 +933,11 @@ function bindEvents() {
     onDraftChanged();
   });
   el.cat.addEventListener('change', onCategoryChange);
-  $('#category-checks').addEventListener('change',e=>{if(!e.target.matches('input[type=checkbox]'))return;const d=currentDraft(),id=idValue(e.target.value);d.categoryIds=e.target.checked?[...new Set([...categoryIds(d),id])]:categoryIds(d).filter(c=>c!==id);d.categoryId=d.categoryIds[0]??null;onDraftChanged();});
+  $('#category-checks').addEventListener('change',e=>{if(!e.target.matches('input[type=checkbox]'))return;const d=currentDraft();if(e.target.value==='__suggested__'){d.categorySuggested='';e.target.closest('label').remove();}else{const id=idValue(e.target.value);d.categoryIds=e.target.checked?[...new Set([...categoryIds(d),id])]:categoryIds(d).filter(c=>c!==id);d.categoryId=d.categoryIds[0]??null;}updateCategorySummary();onDraftChanged();});
+  $('#category-new').onclick=()=>{$('#category-dropdown').open=false;el.cat.value=NEW_CATEGORY;onCategoryChange();};
+  $('#category-done').onclick=()=>{$('#category-dropdown').open=false;$('#category-summary').focus();};
+  document.addEventListener('click',e=>{if(!e.target.closest('#category-dropdown'))$('#category-dropdown').open=false;});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#category-dropdown').open){$('#category-dropdown').open=false;$('#category-summary').focus();}});
   $('#btn-paste').addEventListener('click', pasteFromClipboard);
   $('#btn-addphoto').addEventListener('click', () => pickImage(el.fileGallery, 'append'));
   el.clear.addEventListener('click', clearDraft);
