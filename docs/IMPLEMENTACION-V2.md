@@ -66,7 +66,7 @@ Compilación Vite: solo `dist` se sube a Pages; fuentes, backend y pruebas queda
 |20 Seguridad integral|Implementada; pruebas descritas en PRUEBAS-V2.md|
 |21 PWA/build/compatibilidad|Implementado; validación física pendiente|
 |22 Pruebas obligatorias|Pruebas aprobadas y límites en PRUEBAS-V2.md|
-|23 Publicación|Preparada para despliegue automático de dist|
+|23 Publicación|Publicada en Pages; build/pruebas/despliegue correctos|
 |24 Mínima intervención humana|Únicamente apertura/migración del iPhone y prueba física|
 |25 Transparencia/preservación|Aplicadas|
 |26 Resultado final|Implementación entregada; migración real y hardware pendientes|

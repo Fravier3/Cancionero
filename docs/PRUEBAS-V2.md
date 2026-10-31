@@ -9,6 +9,9 @@
 - Navegador Chromium móvil 390×844 sobre compilación: actualización aditiva de IndexedDB antiguo; canción original conservada después de migrar a Supabase; otro contexto aislado ve la canción sin autenticarse; creación manual con número, tonalidad y dos acordes; tonalidad no transpone; mostrar/ocultar acordes y ampliar lector; búsqueda por letra; Visor sin edición; cuatro lecturas de Evangelio; configuración de OCR opcional y cierre de sesión real.
 - Autorrelleno de foto en navegador usa el resultado de la prueba real de IA como fixture para evitar cargos repetidos: recorte, campos/acordes, ausencia de imagen en bases locales, recarga elimina captura sin guardar, sesión persiste. No equivale a una nueva llamada real de IA desde cámara física.
 - Inspección visual del lector: se ajustó el espacio entre líneas y estrofas al eliminar saltos duplicados del HTML de acordes.
+- Misa real con fecha sintética aislada: publicación autenticada, orden/metadatos conservados en lectura pública y revisión antigua rechazada 409; fixture eliminado al terminar. Sesión de pruebas cerrada y su reutilización rechazada 401.
+- Importación/exportación: una canción con número, tonalidad, acordes y estrofas se conserva; segunda importación deduplicada. Sin conexión, un fallo de sincronización mantiene la biblioteca guardada; reconexión recupera sincronización.
+- Publicación: GitHub Actions compiló, ejecutó pruebas y desplegó correctamente; el sitio público anuncia 2.0.0.
 - Datos sintéticos de biblioteca borrados lógicamente tras las pruebas. Misa original y tablas de otras aplicaciones preservadas.
 
 ## Límites y pendientes explícitos
@@ -17,7 +20,7 @@ No se ha abierto el almacenamiento del iPhone real: sus canciones siguen pendien
 
 No se han realizado pruebas físicas de cámara, instalación, teclado, áreas seguras y zoom en iPhone/Android; tampoco una actualización instalada de la PWA anterior sobre hardware real. La caché sin conexión y la actualización están implementadas, pero su comportamiento físico debe comprobarse en esos dispositivos. No se certifica precisión perfecta de OCR: revisar siempre el texto y las posiciones antes de guardar.
 
-Los límites de IA y acceso se verificaron por implementación y permisos; no se consumió deliberadamente toda la cuota de OpenAI ni se ejecutó un ataque de carga. Las pruebas de importación masiva, conflictos simultáneos de Misa y recuperación sin conexión no cubren todos los escenarios posibles.
+Los límites de IA y acceso se verificaron por implementación y permisos; no se consumió deliberadamente toda la cuota de OpenAI ni se ejecutó un ataque de carga. Las pruebas de importación y recuperación sin conexión usan un conjunto pequeño; no cubren todos los escenarios posibles de volumen, cambios de red o fallos del dispositivo.
 
 ## Para comprobar en el teléfono
 
