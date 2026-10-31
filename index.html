@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>Mi Cancionero</title>
+  <meta name="description" content="Biblioteca de letras para cantar: busca por título o fragmento, clasifica por momento de la misa y captura letras con la cámara.">
+  <meta name="theme-color" content="#2b2f6e" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#10111a" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Cancionero">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" href="icons/icon-192.png">
+  <link rel="preload" href="fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="css/styles.css">
+  <script>window.APP_VERSION = '1.0.0';</script>
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" data-icon="music" data-size="22"></span>
+        <div>
+          <h1>Cancionero</h1>
+          <p id="subtitle">Cargando…</p>
+        </div>
+      </div>
+      <button id="btn-settings" class="icon-btn" type="button" aria-label="Categorías y respaldo" data-icon="settings-2"></button>
+    </header>
+
+    <main id="main">
+      <!-- LETRAS -->
+      <section id="view-library" class="view" aria-label="Letras">
+        <div id="install-hint" class="hint" hidden></div>
+        <div class="search">
+          <span class="search-icon" data-icon="search" data-size="20"></span>
+          <input id="q" type="text" inputmode="search" enterkeyhint="search" autocomplete="off"
+                 autocapitalize="off" spellcheck="false" placeholder="Buscar por título o fragmento…"
+                 aria-label="Buscar letras por título o fragmento">
+          <button id="q-clear" class="icon-btn small" type="button" hidden aria-label="Borrar búsqueda" data-icon="x" data-size="18"></button>
+        </div>
+        <div id="chips" class="chips" aria-label="Filtrar por categoría"></div>
+        <p id="results-info" class="results-info" aria-live="polite"></p>
+        <div id="list" class="list"></div>
+      </section>
+
+      <!-- PEGAR / EDITAR -->
+      <section id="view-editor" class="view" aria-label="Pegar letra" hidden>
+        <form id="editor" class="editor" autocomplete="off" novalidate>
+          <div class="editor-head">
+            <h2 id="editor-title">Nueva letra</h2>
+            <button type="button" id="editor-cancel" class="btn ghost small" hidden>Cancelar</button>
+          </div>
+
+          <div class="field">
+            <label for="f-title">Título</label>
+            <input id="f-title" type="text" maxlength="120" placeholder="Ej.: Pescador de hombres" autocapitalize="sentences" enterkeyhint="next">
+            <button type="button" id="btn-firstline" class="link" hidden>Usar la primera línea como título</button>
+          </div>
+
+          <div class="field">
+            <label for="f-cat">Categoría</label>
+            <select id="f-cat"></select>
+          </div>
+
+          <div class="field">
+            <div class="field-row">
+              <label for="f-lyrics">Letra</label>
+              <div class="field-actions">
+                <button type="button" id="btn-paste" class="btn small secondary" data-icon="clipboard-paste" data-size="18"> Pegar</button>
+                <button type="button" id="btn-addphoto" class="btn small secondary" data-icon="camera" data-size="18"> Foto</button>
+              </div>
+            </div>
+            <textarea id="f-lyrics" rows="14" placeholder="Pega aquí la letra o escríbela…" spellcheck="false"></textarea>
+          </div>
+
+          <div class="editor-actions">
+            <button type="submit" id="btn-save" class="btn primary block big" data-icon="check" data-size="20"> Guardar letra</button>
+            <button type="button" id="btn-clear" class="btn ghost danger block">Limpiar todo</button>
+          </div>
+        </form>
+      </section>
+
+      <!-- FOTO -->
+      <section id="view-scan" class="view" aria-label="Capturar con la cámara" hidden>
+        <div class="scan">
+          <div class="scan-hero">
+            <span class="scan-badge" data-icon="camera" data-size="34"></span>
+            <h2>Capturar una letra</h2>
+            <p>Toma una foto a la hoja o elige una imagen. La app lee el texto aquí mismo y lo pasa al editor para que lo revises, le pongas título y lo guardes.</p>
+          </div>
+          <button id="btn-camera" type="button" class="btn primary block big" data-icon="camera" data-size="22"> Tomar foto</button>
+          <button id="btn-gallery" type="button" class="btn secondary block big" data-icon="image" data-size="22"> Elegir de la galería</button>
+          <ul class="tips">
+            <li>Pon la hoja plana, con buena luz y sin sombras.</li>
+            <li>Encuadra solo la letra, bien de frente.</li>
+            <li>Si la letra es larga, toma varias fotos: se van añadiendo.</li>
+            <li>Revisa siempre el texto antes de guardar.</li>
+          </ul>
+          <input id="file-camera" type="file" accept="image/*" capture="environment" hidden>
+          <input id="file-gallery" type="file" accept="image/*" hidden>
+        </div>
+      </section>
+    </main>
+
+    <nav class="tabbar" aria-label="Secciones">
+      <button type="button" class="tab" data-tab="library" data-icon="list-music"><span>Letras</span></button>
+      <button type="button" class="tab" data-tab="editor" data-icon="clipboard-paste"><span>Pegar</span></button>
+      <button type="button" class="tab" data-tab="scan" data-icon="camera"><span>Foto</span></button>
+    </nav>
+  </div>
+
+  <!-- LECTURA (siempre fondo blanco para cantar) -->
+  <div id="reader" class="reader" hidden role="dialog" aria-modal="true" aria-label="Letra">
+    <header class="reader-bar">
+      <button id="rd-back" class="icon-btn dark" type="button" aria-label="Volver a la lista" data-icon="arrow-left"></button>
+      <div class="reader-actions">
+        <button id="rd-smaller" class="size-btn" type="button" aria-label="Letra más pequeña">A<small>−</small></button>
+        <button id="rd-bigger" class="size-btn" type="button" aria-label="Letra más grande">A<small>+</small></button>
+        <button id="rd-edit" class="icon-btn dark" type="button" aria-label="Editar letra" data-icon="pencil"></button>
+        <button id="rd-delete" class="icon-btn dark" type="button" aria-label="Eliminar letra" data-icon="trash-2"></button>
+      </div>
+    </header>
+    <article id="rd-scroll" class="reader-scroll">
+      <h2 id="rd-title"></h2>
+      <p id="rd-cat" class="reader-cat"></p>
+      <div id="rd-lyrics" class="reader-lyrics"></div>
+    </article>
+  </div>
+
+  <!-- AJUSTES -->
+  <div id="sheet" class="sheet-backdrop" hidden>
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+      <div class="sheet-grip"></div>
+      <header class="sheet-head">
+        <h2 id="sheet-title">Categorías y respaldo</h2>
+        <button id="sheet-close" class="icon-btn" type="button" aria-label="Cerrar" data-icon="x"></button>
+      </header>
+      <div id="sheet-body" class="sheet-body"></div>
+    </div>
+  </div>
+
+  <!-- LEYENDO FOTO -->
+  <div id="busy" class="busy" hidden role="alertdialog" aria-labelledby="busy-title" aria-live="assertive">
+    <div class="busy-card">
+      <img id="busy-img" alt="Foto que se está leyendo">
+      <h3 id="busy-title">Leyendo la letra…</h3>
+      <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100"><div id="busy-bar"></div></div>
+      <p id="busy-sub">Esto puede tardar unos segundos.</p>
+      <button id="busy-cancel" class="btn ghost" type="button">Cancelar</button>
+    </div>
+  </div>
+
+  <input id="file-import" type="file" accept="application/json,.json" hidden>
+  <div id="modal-root"></div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <noscript><p style="padding:24px;font-family:sans-serif">Esta app necesita JavaScript para funcionar.</p></noscript>
+
+  <script src="libs/dexie.min.js"></script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
