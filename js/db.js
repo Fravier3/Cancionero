@@ -42,6 +42,7 @@ export async function migrateLocal(onProgress=()=>{}){
 }
 export async function saveSong(s){
  if(s.legacy||typeof s.id==='number')throw new Error('Migra primero las canciones de este teléfono desde Configuración. El original seguirá guardado.');
+ const comparison=norm(s.lyrics);const existing=(await publicRows('cancionero_songs')).find(row=>row.id!==s.id&&norm(row.lyrics)===comparison);if(existing)throw new Error(`Esta letra ya existe como «${existing.title}». Abre esa canción para editarla.`);
  const result=await call('song_save',{...normalized(s,s.categorySuggested||await categoryName(s.categoryId)),id:s.id||'',revision:s.revision||null});const saved=result.results[0].song;await db.cloudSongs.put(adapt(saved));await syncLibrary();return saved.id;
 }
 export async function deleteSong(id){const s=await db.cloudSongs.get(id);if(!s)throw new Error('Migra primero la canción local antes de eliminarla de la biblioteca central.');await call('song_delete',{id,revision:s.revision});await db.cloudSongs.delete(id);await syncLibrary();}

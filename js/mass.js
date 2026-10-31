@@ -21,7 +21,7 @@ export function initMass({ getSongs, categoryName, openSong, canEdit=()=>true })
     ${selected!==sundayFor()?'<button class="link" data-mass="today">Ir al domingo actual o próximo</button>':''}
     <p class="note">${entries.length} ${entries.length===1?'canción preparada':'canciones preparadas'} · ${editing?'Editando · cambios sin publicar':'Compartida con todos'}</p>
     <p id="mass-sync" class="mass-sync" role="status">${esc(syncMessage)}</p>
-    <div class="mass-edit-tools">${editing?'<button class="btn primary" data-mass="save">Guardar cambios para todos</button><button class="btn secondary" data-mass="cancel">Cancelar</button>':`<button class="btn secondary" data-mass="edit" ${canEdit()?'':'hidden'} ${online?'':'disabled'}>Editar misa</button><button class="btn ghost" data-mass="refresh">Actualizar</button>`}</div>
+    <div class="mass-edit-tools">${editing?'<button class="btn primary" data-mass="save">Guardar cambios para todos</button><button class="btn secondary" data-mass="cancel">Cancelar</button>':`<button class="btn secondary" data-mass="edit" ${canEdit()?'':'hidden'} ${online?'':'disabled'}>Organizar misa</button>${entries.length&&canEdit()?`<button class="btn ghost" data-mass="edit" ${online?'':'disabled'}>Editar misa</button>`:''}<button class="btn ghost" data-mass="refresh">Actualizar</button>`}</div>
     ${editing&&localPlan?.entries?.length&&!entries.length?'<button class="link" data-mass="restore">Usar mi misa guardada en este dispositivo</button>':''}
     <button class="btn primary block big" data-mass="start" ${entries.length?'':'disabled'}>Comenzar misa</button>
     <ol class="mass-order">${entries.map((e,i)=>`<li><span class="mass-number">${i+1}</span><button class="mass-song" data-mass="read" data-index="${i}"><strong>${esc(e.title)}</strong><small>${esc(e.category||'Sin categoría')}</small></button>${editing?`<div class="mass-controls">
@@ -125,7 +125,7 @@ export function initMass({ getSongs, categoryName, openSong, canEdit=()=>true })
     if(action==='read')return start(i);
     if(!editing||!canEdit())return;
     if(action==='add'){
-      const song=getSongs().find(s=>s.id===Number(btn.dataset.id));if(!song)return;
+      const song=getSongs().find(s=>String(s.id)===btn.dataset.id);if(!song)return;
       await change(()=>entries.push({title:song.title,lyrics:song.lyrics,category:categoryName(song),songId:song.id,key:song.key,chords:song.chords,number:song.number}));
       toast('Canción añadida. Guarda los cambios para compartirla.');return;
     }

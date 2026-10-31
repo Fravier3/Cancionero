@@ -86,7 +86,6 @@ const el = {
   title: $('#f-title'),
   cat: $('#f-cat'),
   lyrics: $('#f-lyrics'),
-  firstLine: $('#btn-firstline'),
   save: $('#btn-save'),
   clear: $('#btn-clear'),
   fileCamera: $('#file-camera'),
@@ -369,7 +368,7 @@ function renderCatSelect() {
 
 function updateFirstLineButton() {
   const d = currentDraft();
-  el.firstLine.hidden = !(d && !d.title.trim() && d.lyrics.trim());
+
 }
 
 function updateDraftDot() {
@@ -903,14 +902,6 @@ function bindEvents() {
     onDraftChanged();
   });
   el.cat.addEventListener('change', onCategoryChange);
-  el.firstLine.addEventListener('click', () => {
-    const d = currentDraft();
-    const first = d.lyrics.split('\n').find((l) => l.trim());
-    if (!first) return;
-    d.title = first.trim().slice(0, 120);
-    el.title.value = d.title;
-    onDraftChanged();
-  });
   $('#btn-paste').addEventListener('click', pasteFromClipboard);
   $('#btn-addphoto').addEventListener('click', () => pickImage(el.fileGallery, 'append'));
   el.clear.addEventListener('click', clearDraft);

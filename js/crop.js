@@ -12,15 +12,18 @@ export async function cropImage(file) {
   layer.setAttribute('aria-labelledby', 'crop-title');
   layer.innerHTML = `<div class="crop-panel"><h2 id="crop-title">Recortar la letra</h2>
     <p>Arrastra las esquinas o ajusta los bordes. Incluye una sola columna y deja un pequeño margen.</p>
-    <div class="crop-stage"><canvas aria-label="Vista previa de la foto"></canvas><div class="crop-box">${['nw','ne','sw','se'].map(c=>`<span class="crop-handle ${c}" data-corner="${c}"></span>`).join('')}</div></div>
-    <div class="crop-ranges">${[['left','Izquierda'],['right','Derecha'],['top','Arriba'],['bottom','Abajo']].map(([key,label])=>`<label>${label}<input data-edge="${key}" aria-label="Borde ${esc(label.toLowerCase())}" type="range" min="0" max="100" step="1" value="${key==='right'||key==='bottom'?100:0}"></label>`).join('')}</div>
-    <div class="crop-tools"><button type="button" class="btn secondary" data-action="rotate">Girar 90°</button><button type="button" class="btn ghost" data-action="reset">Foto completa</button></div>
+    <label class="crop-zoom">Ampliar imagen <input aria-label="Ampliar imagen" id="crop-zoom" type="range" min="1" max="4" step="0.25" value="1"></label><div class="crop-viewport"><div class="crop-stage"><canvas aria-label="Vista previa de la foto"></canvas><div class="crop-box">${['nw','ne','sw','se'].map(c=>`<span class="crop-handle ${c}" data-corner="${c}"></span>`).join('')}</div></div></div>
+    <details><summary>Ajustar bordes con precisión</summary><div class="crop-ranges">${[['left','Izquierda'],['right','Derecha'],['top','Arriba'],['bottom','Abajo']].map(([key,label])=>`<label>${label}<input data-edge="${key}" aria-label="Borde ${esc(label.toLowerCase())}" type="range" min="0" max="100" step="1" value="${key==='right'||key==='bottom'?100:0}"></label>`).join('')}</div>
+    </details><div class="crop-tools"><button type="button" class="btn secondary" data-action="rotate">Girar 90°</button><button type="button" class="btn ghost" data-action="reset">Foto completa</button></div>
     <p class="crop-error" role="status"></p>
     <div class="crop-tools"><button type="button" class="btn secondary" data-action="cancel">Cancelar</button><button type="button" class="btn primary" data-action="read">Recortar y leer</button></div></div>`;
   document.body.append(layer);
   const canvas = layer.querySelector('canvas'), stage = layer.querySelector('.crop-stage'), box = layer.querySelector('.crop-box');
   const ctx = canvas.getContext('2d');
   let angle=0, rect={left:0,top:0,right:100,bottom:100}, drag=null, finished=false;
+  let zoom=1;
+  function resize(){const width=layer.querySelector(".crop-viewport").clientWidth;stage.style.width=`${Math.max(1,width)*zoom}px`;}
+  layer.querySelector("#crop-zoom").oninput=e=>{zoom=Number(e.target.value);resize();};
   function draw() {
     const scale=Math.min(1,3200/Math.max(image.naturalWidth,image.naturalHeight));
     const w=Math.round(image.naturalWidth*scale), h=Math.round(image.naturalHeight*scale);
@@ -28,7 +31,7 @@ export async function cropImage(file) {
     ctx.save();ctx.translate(canvas.width/2,canvas.height/2);ctx.rotate(angle*Math.PI/180);
     ctx.drawImage(image,-w/2,-h/2,w,h);ctx.restore();
     stage.style.aspectRatio=`${canvas.width}/${canvas.height}`;
-    stage.style.width=`min(100%, ${canvas.width/canvas.height*360}px)`;
+    resize();
     update();
   }
   function update() {

@@ -1,7 +1,8 @@
 import { esc, readStorage, writeStorage } from './util.js';
+import {call} from './api.js';
 import { sundayFor, sundayLabel } from './dates.js';
 const SOURCE='https://feed.evangelizo.org/v2/reader.php';
-const KEY='cancionero.sunday-readings.v1';
+const KEY='cancionero.sunday-readings.v2';
 const FIELDS=[['reading_text1','Primera lectura'],['reading_text2','Salmo responsorial'],['reading_text3','Segunda lectura'],['reading_gospel','Evangelio']];
 function plain(text){
   const doc=new DOMParser().parseFromString(String(text).replace(/<br\s*\/?\s*>/gi,'\n'),'text/html');
@@ -27,7 +28,7 @@ export function initGospel({openReading,closeOtherReaders}){
     <p class="readings-status" role="status">${esc(message)}</p>
     <div class="reading-cards">${data?.date===date?data.readings.map((r,i)=>`<button class="reading-card" data-reading="${i}"><span class="reading-number">${i+1}</span><span><small>${esc(r.label)}</small><strong>${esc(r.title)}</strong><span class="reading-excerpt">${esc(r.text.slice(0,115))}…</span></span><span aria-hidden="true">›</span></button>`).join(''):''}</div>
     ${data?.date===date?'<p class="note">Toca una lectura para verla a pantalla completa. Amplía con A+ o pellizcando la pantalla.</p>':''}
-    <div class="readings-footer"><button class="btn secondary" type="button" data-readings-refresh>Actualizar lecturas</button><p>Fuente: <a href="https://www.evangeliodeldia.org/" target="_blank" rel="noopener noreferrer">Evangelizo · Evangelio del día</a><br>Calendario romano ordinario · Español</p></div>`;
+    <div class="readings-footer"><button class="btn secondary" type="button" data-readings-refresh>Actualizar lecturas</button><p>Fuente: <a href="https://www.evangeliodeldia.org/" target="_blank" rel="noopener noreferrer">Evangelizo · Evangelio del día</a><br>Salmo responsorial: USCCB (leccionario de México; puede variar en tu parroquia).<br>Calendario romano ordinario · Español</p></div>`;
   }
   async function show(force=false){
     const current=++token,date=sundayFor();data=cached(date);render(data?'Lecturas guardadas de este domingo.':'Cargando las lecturas de este domingo…');
@@ -38,6 +39,8 @@ export function initGospel({openReading,closeOtherReaders}){
       const response=await fetch(`${SOURCE}?${params}`,{signal:controller.signal,credentials:'omit',cache:'no-store'});
       if(!response.ok)throw new Error('No se pudieron cargar las lecturas.');
       const result=parseReadings(await response.text(),date);
+      try{const psalm=await call('readings',{date});const reading=result.readings.find(r=>r.label==='Salmo responsorial');reading.text=plain(psalm.html);reading.title=plain(psalm.reference)||reading.title;result.psalmSource=psalm.url;}catch{const reading=result.readings.find(r=>r.label==='Salmo responsorial');reading.text='Respuesta de la asamblea no disponible en la fuente. Pulsa Actualizar lecturas para reintentar.\n\n'+reading.text;}
+
       if(current!==token||date!==sundayFor())return;
       data=result;writeStorage(KEY,JSON.stringify(result));render('Lecturas de este domingo listas para leer.');
     }catch{

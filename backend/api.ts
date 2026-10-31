@@ -3,6 +3,16 @@ Deno.serve(async req=>{
  if(req.method==='OPTIONS')return reply(req,{ok:true});
  try{
   const input=await body(req);const action=input.action;
+  if(action==='readings'){
+   const date=input.data?.date;if(typeof date!=='string'||!/^20\d{2}-\d{2}-\d{2}$/.test(date)||Number.isNaN(Date.parse(date)))throw new ApiError('Fecha inválida.');
+   const code=date.slice(5,7)+date.slice(8,10)+date.slice(2,4),url=`https://bible.usccb.org/es/bible/lecturas/${code}.cfm`;
+   const response=await fetch(url,{signal:AbortSignal.timeout(15000)});if(!response.ok)throw new ApiError('No se pudo consultar el salmo.',502);
+   const html=await response.text();const part=html.split(/<h3[^>]*>\s*Salmo Responsorial\s*<\/h3>/i)[1]?.split(/<h3[\s>]/i)[0];
+   const content=part?.match(/<div class="content-body">([\s\S]*?)<\/div>/i)?.[1];
+   const reference=part?.match(/<div class="address">([\s\S]*?)<\/div>/i)?.[1]||'';
+   if(!content||!content.includes('R.'))throw new ApiError('La fuente no incluyó la respuesta del salmo.',502);
+   return reply(req,{date,html:content,reference,url});
+  }
   if(action==='login'){
    if(typeof input.password!=='string'||input.password.length>128)throw new ApiError('Contraseña inválida.');
    const token=hex(crypto.getRandomValues(new Uint8Array(32)));

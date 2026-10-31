@@ -70,7 +70,7 @@
         <div class="section-heading"><h2>Añadir canción</h2><p>Escribe la letra o captúrala con una foto.</p></div>
         <fieldset class="add-selector"><legend class="sr-only">Cómo añadir una canción</legend>
           <label><input type="radio" name="add-method" value="editor" checked><span data-icon="pencil" data-size="20">Escribir</span></label>
-          <label><input type="radio" name="add-method" value="scan"><span data-icon="camera" data-size="20">Tomar foto</span></label>
+          <label><input type="radio" name="add-method" value="scan"><span data-icon="camera" data-size="20">Foto</span></label>
         </fieldset>
       <!-- PEGAR / EDITAR -->
       <section id="view-editor" class="view" aria-label="Escribir canción" hidden>
@@ -84,11 +84,10 @@
           <div class="field">
             <label for="f-title">Título</label>
             <input id="f-title" type="text" maxlength="120" placeholder="Ej.: Pescador de hombres" autocapitalize="sentences" enterkeyhint="next">
-            <button type="button" id="btn-firstline" class="link" hidden>Usar la primera línea como título</button>
           </div>
 
           <div class="song-metadata"><div class="field"><label for="f-number">Número de canción</label><input id="f-number" maxlength="30" inputmode="text" placeholder="Opcional"></div>
-          <fieldset class="field key-field"><legend>Tonalidad (opcional)</legend><div><select id="f-key-note" aria-label="Nota de la tonalidad"><option value="">Sin tonalidad</option><option>Do</option><option>Re</option><option>Mi</option><option>Fa</option><option>Sol</option><option>La</option><option>Si</option></select><select id="f-key-mode" aria-label="Mayor o menor"><option value="">Modalidad</option><option value="+">+ Mayor</option><option value="-">− Menor</option></select></div></fieldset></div>
+          <fieldset class="field key-field"><legend>Tonalidad (opcional)</legend><div><select id="f-key-note" aria-label="Tonalidad"><option value="">Sin tonalidad</option><option value="Do+">Do +</option><option value="Do-">Do -</option><option value="Re+">Re +</option><option value="Re-">Re -</option><option value="Mi+">Mi +</option><option value="Mi-">Mi -</option><option value="Fa+">Fa +</option><option value="Fa-">Fa -</option><option value="Sol+">Sol +</option><option value="Sol-">Sol -</option><option value="La+">La +</option><option value="La-">La -</option><option value="Si+">Si +</option><option value="Si-">Si -</option></select></div></fieldset></div>
           <div class="field">
             <label for="f-cat">Categoría</label>
             <select id="f-cat"></select>
@@ -121,6 +120,8 @@
       <!-- FOTO -->
       <section id="view-scan" class="view" aria-label="Capturar con la cámara" hidden>
         <div class="scan">
+          <button id="btn-camera" type="button" class="btn primary block big" data-icon="camera" data-size="22"> Tomar foto</button>
+          <button id="btn-gallery" type="button" class="btn secondary block big" data-icon="image" data-size="22"> Elegir de la galería</button>
           <div class="scan-hero">
             <span class="scan-badge" data-icon="camera" data-size="34"></span>
             <h2>Capturar una letra</h2>
@@ -133,8 +134,6 @@
             <div id="engine-field" class="field" hidden><label for="photo-engine">Motor de reconocimiento</label><select id="photo-engine"><option value="ai">IA · OpenAI</option><option value="traditional">OCR tradicional</option></select></div>
             <p class="note">La foto se envía a OpenAI solo para reconocerla; Cancionero no la guarda. OpenAI puede retener datos según su política. Cancelar no revierte una llamada ya iniciada.</p>
           </div>
-          <button id="btn-camera" type="button" class="btn primary block big" data-icon="camera" data-size="22"> Tomar foto</button>
-          <button id="btn-gallery" type="button" class="btn secondary block big" data-icon="image" data-size="22"> Elegir de la galería</button>
           <ul class="tips">
             <li>Pon la hoja plana, con buena luz y sin sombras.</li>
             <li>Encuadra solo la letra, bien de frente.</li>
