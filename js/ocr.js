@@ -1,8 +1,9 @@
 // Lectura de letras desde una foto con Tesseract.js (todo local, sin enviar la imagen a ningún servidor).
 import { loadScript } from './util.js';
+import { layoutLyrics } from './ocr-layout.js';
 
 const BASE = new URL('libs/', document.baseURI).href;
-const MAX_SIDE = 2600; // lado máximo al que se reduce la foto
+const MAX_SIDE = 3200; // lado máximo al que se reduce la foto
 const MIN_SIDE = 1400; // fotos más pequeñas se amplían hasta aquí
 
 let workerPromise = null;
@@ -115,47 +116,35 @@ async function preprocess(file) {
   return canvas;
 }
 
-/** Arregla defectos típicos del OCR sin cambiar el contenido de la letra. */
-function tidy(text) {
-  return String(text ?? '')
-    .replace(/\r\n?/g, '\n')
-    .split('\n')
-    .map((line) => line.replace(/[ \t]+$/g, '').replace(/^[|\\]+\s+/, ''))
-    .join('\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
-}
-
 const abortError = () => Object.assign(new Error('Lectura cancelada'), { name: 'AbortError' });
 
-/**
- * Lee el texto de una imagen.
- * @param {File|Blob} file
- * @param {{ onStatus?: Function, signal?: AbortSignal }} options
- * @returns {Promise<{ text: string, confidence: number }>}
- */
 export async function readLyricsFromImage(file, { onStatus, signal } = {}) {
-  const aborted = new Promise((_, reject) => {
-    if (signal?.aborted) reject(abortError());
-    signal?.addEventListener('abort', () => reject(abortError()), { once: true });
-  });
-
+  let canvas;
+  const check = () => { if (signal?.aborted) throw abortError(); };
+  let rejectAbort;
+  const aborted = new Promise((_, reject) => { rejectAbort = reject; });
+  const onAbort = () => { rejectAbort(abortError()); cancelOcr(); };
+  signal?.addEventListener('abort', onAbort, { once: true });
   const work = (async () => {
+    check();
     onStatus?.({ status: 'preparing image', progress: 0 });
-    const canvas = await preprocess(file);
-    const blob = await new Promise((resolve, reject) =>
-      canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('No se pudo preparar la imagen.'))), 'image/png'),
-    );
+    canvas = await preprocess(file);check();
     statusListener = onStatus;
-    const worker = await getWorker();
-    const { data } = await worker.recognize(blob);
-    return { text: tidy(data.text), confidence: data.confidence ?? 0 };
+    const worker = await getWorker();check();
+    await worker.setParameters({
+      tessedit_pageseg_mode: '6', preserve_interword_spaces: '1', user_defined_dpi: '300',
+    });
+    check();
+    const { data } = await worker.recognize(canvas, {}, { text: true, tsv: true });
+    check();
+    return { text: layoutLyrics(data), confidence: data.confidence ?? 0 };
   })();
-
-  try {
-    return await Promise.race([work, aborted]);
-  } finally {
+  try { return await Promise.race([work, aborted]); }
+  finally {
+    signal?.removeEventListener('abort', onAbort);
     statusListener = null;
-    work.catch(() => {}); // evita errores sin capturar si se canceló
+    await cancelOcr();
+    work.catch(() => {});
+    if (canvas) canvas.width = canvas.height = 1;
   }
 }

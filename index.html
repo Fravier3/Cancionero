@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>Mi Cancionero</title>
   <meta name="description" content="Biblioteca de letras para cantar: busca por título o fragmento, clasifica por momento de la misa y captura letras con la cámara.">
-  <meta name="theme-color" content="#2b2f6e" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#10111a" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#ffffff">
+  <meta name="color-scheme" content="only light">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -16,7 +16,7 @@
   <link rel="icon" type="image/png" href="icons/icon-192.png">
   <link rel="preload" href="fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="css/styles.css">
-  <script>window.APP_VERSION = '1.0.0';</script>
+  <script>window.APP_VERSION = '1.1.0';</script>
 </head>
 <body>
   <div id="app">
@@ -55,6 +55,7 @@
             <button type="button" id="editor-cancel" class="btn ghost small" hidden>Cancelar</button>
           </div>
 
+          <p id="ocr-review" role="status" hidden></p>
           <div class="field">
             <label for="f-title">Título</label>
             <input id="f-title" type="text" maxlength="120" placeholder="Ej.: Pescador de hombres" autocapitalize="sentences" enterkeyhint="next">
@@ -71,7 +72,7 @@
               <label for="f-lyrics">Letra</label>
               <div class="field-actions">
                 <button type="button" id="btn-paste" class="btn small secondary" data-icon="clipboard-paste" data-size="18"> Pegar</button>
-                <button type="button" id="btn-addphoto" class="btn small secondary" data-icon="camera" data-size="18"> Foto</button>
+                <button type="button" id="btn-addphoto" class="btn small secondary" data-icon="camera" data-size="18"> Añadir foto</button>
               </div>
             </div>
             <textarea id="f-lyrics" rows="14" placeholder="Pega aquí la letra o escríbela…" spellcheck="false"></textarea>
@@ -97,19 +98,21 @@
           <ul class="tips">
             <li>Pon la hoja plana, con buena luz y sin sombras.</li>
             <li>Encuadra solo la letra, bien de frente.</li>
-            <li>Si la letra es larga, toma varias fotos: se van añadiendo.</li>
-            <li>Revisa siempre el texto antes de guardar.</li>
+            <li>Recorta una sola columna de letra. Puedes girar la foto antes de leerla.</li>
+            <li>Cada captura empieza limpia. Para unir páginas, usa «Añadir foto» en el editor.</li>
           </ul>
           <input id="file-camera" type="file" accept="image/*" capture="environment" hidden>
           <input id="file-gallery" type="file" accept="image/*" hidden>
         </div>
       </section>
+      <section id="view-mass" class="view" aria-label="Misa" hidden></section>
     </main>
 
     <nav class="tabbar" aria-label="Secciones">
       <button type="button" class="tab" data-tab="library" data-icon="list-music"><span>Letras</span></button>
       <button type="button" class="tab" data-tab="editor" data-icon="clipboard-paste"><span>Pegar</span></button>
       <button type="button" class="tab" data-tab="scan" data-icon="camera"><span>Foto</span></button>
+      <button type="button" class="tab" data-tab="mass" data-icon="book-open"><span>Misa</span></button>
     </nav>
   </div>
 
@@ -129,6 +132,11 @@
       <p id="rd-cat" class="reader-cat"></p>
       <div id="rd-lyrics" class="reader-lyrics"></div>
     </article>
+    <footer id="mass-reader-nav" class="mass-reader-nav" hidden>
+      <p id="mass-reader-position" aria-live="polite"></p>
+      <div><button id="mass-prev" class="btn secondary" type="button">Anterior</button>
+      <button id="mass-next" class="btn primary" type="button">Siguiente</button></div>
+    </footer>
   </div>
 
   <!-- AJUSTES -->

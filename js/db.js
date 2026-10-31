@@ -1,5 +1,6 @@
 // Almacenamiento local (IndexedDB con Dexie): letras y categorías.
 import { norm } from './util.js';
+import { parseDate } from './dates.js';
 
 const Dexie = window.Dexie;
 
@@ -9,6 +10,8 @@ db.version(1).stores({
   songs: '++id, titleKey, categoryId, updatedAt',
   categories: '++id, &key',
 });
+
+db.version(2).stores({ songs: '++id, titleKey, categoryId, updatedAt', categories: '++id, &key', masses: '&date' });
 
 export const DEFAULT_CATEGORIES = [
   'Entrada',
@@ -39,8 +42,7 @@ export function cleanLyrics(text) {
     .split('\n')
     .map((line) => line.replace(/[ \t]+$/g, ''))
     .join('\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
+    .replace(/^\n+|\n+$/g, '');
 }
 
 export const listSongs = () => db.songs.toArray();
@@ -109,10 +111,11 @@ export function deleteCategory(id) {
 /* ---------- Respaldo ---------- */
 
 export async function exportAll() {
-  const [categories, songs] = await Promise.all([listCategories(), listSongs()]);
+  const [categories, songs, masses] = await Promise.all([listCategories(), listSongs(), db.masses.toArray()]);
   return {
     app: 'cancionero',
-    version: 1,
+    version: 2,
+    masses,
     exportedAt: new Date().toISOString(),
     categories: categories.map(({ id, name, order }) => ({ id, name, order })),
     songs: songs.map(({ title, lyrics, categoryId, createdAt, updatedAt }) => ({
@@ -159,5 +162,14 @@ export async function importAll(data) {
     if (Number.isFinite(s.createdAt)) await db.songs.update(id, { createdAt: s.createdAt });
     added += 1;
   }
-  return { added, skipped };
+  let massesAdded = 0;
+  for (const mass of Array.isArray(data.masses) ? data.masses : []) {
+    const date = parseDate(mass?.date || '');
+    if (!date || date.getDay() !== 0 || !Array.isArray(mass.entries) || await db.masses.get(mass.date)) continue;
+    const entries = mass.entries.filter(e => typeof e?.title === 'string' && typeof e?.lyrics === 'string')
+      .slice(0, 200).map(e => ({ title: e.title.slice(0,200), lyrics: e.lyrics.slice(0,50000), category: String(e.category || '').slice(0,40) }));
+    await db.masses.put({ date: mass.date, entries, updatedAt: Date.now() });
+    massesAdded++;
+  }
+  return { added, skipped, massesAdded };
 }

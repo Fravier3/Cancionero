@@ -5,11 +5,15 @@ import * as store from './db.js';
 import { confirmBox, askText, modal, toast } from './ui.js';
 import { ocrSupported, readLyricsFromImage, cancelOcr } from './ocr.js';
 import { initPWA } from './pwa.js';
+import { cropImage } from './crop.js';
+import { initMass } from './mass.js';
 
 /* ============================================================
    Estado
    ============================================================ */
-const DRAFT_KEY = 'cancionero.draft.v1';
+const DRAFT_KEY = 'cancionero.draft.v2';
+// Older drafts mixed OCR results with persistent text; never restore those captures.
+writeStorage('cancionero.draft.v1', null);
 const FONT_KEY = 'cancionero.fontsize';
 const HINT_KEY = 'cancionero.hint.dismissed';
 const FONT_STEPS = [18, 20, 22, 24, 26, 28, 32, 36, 40, 46, 52];
@@ -51,7 +55,7 @@ const currentDraft = () => (state.editing ? drafts.edit : drafts.fresh);
 const hasContent = (d) => Boolean(d.title.trim() || d.lyrics.trim());
 
 const persistDraft = debounce(() => {
-  writeStorage(DRAFT_KEY, hasContent(drafts.fresh) ? JSON.stringify(drafts.fresh) : null);
+  writeStorage(DRAFT_KEY, !drafts.fresh.transient && hasContent(drafts.fresh) ? JSON.stringify(drafts.fresh) : null);
 }, 350);
 
 /* ============================================================
@@ -59,7 +63,7 @@ const persistDraft = debounce(() => {
    ============================================================ */
 const el = {
   subtitle: $('#subtitle'),
-  views: { library: $('#view-library'), editor: $('#view-editor'), scan: $('#view-scan') },
+  views: { library: $('#view-library'), editor: $('#view-editor'), scan: $('#view-scan'), mass: $('#view-mass') },
   tabs: $$('.tab'),
   q: $('#q'),
   qClear: $('#q-clear'),
@@ -306,6 +310,7 @@ async function navigate(view) {
   updateDraftDot();
   if (view === 'editor') renderEditor();
   if (view === 'library') renderLibrary();
+  if (view === 'mass') await mass.show();
   applyView();
   return true;
 }
@@ -339,6 +344,8 @@ function renderEditor() {
   el.editorCancel.hidden = !state.editing;
   el.clear.hidden = state.editing;
   el.save.lastChild.textContent = state.editing ? ' Guardar cambios' : ' Guardar letra';
+  $('#ocr-review').hidden = !d.transient;
+  $('#ocr-review').textContent = d.ocrNotice || 'Captura temporal: revisa la letra y guárdala. Al recargar se descarta.';
   el.title.value = d.title;
   el.lyrics.value = d.lyrics;
   renderCatSelect();
@@ -407,8 +414,8 @@ async function pasteFromClipboard() {
 async function saveCurrent() {
   const d = currentDraft();
   const title = d.title.trim();
-  const lyrics = d.lyrics.trim();
-  if (!lyrics) {
+  const lyrics = d.lyrics;
+  if (!lyrics.trim()) {
     toast('Escribe o pega la letra primero');
     el.lyrics.focus();
     return;
@@ -537,30 +544,24 @@ async function runOcr(file, requestedMode) {
     toast('Este navegador no puede leer fotos. Pega la letra a mano.', 3600);
     return;
   }
-  let mode = requestedMode;
-  if (!state.editing && mode === 'replace' && hasContent(drafts.fresh)) {
-    const { value } = await modal({
-      title: 'Ya tienes una letra sin guardar',
-      message: '¿Quieres añadir lo que lea la foto al final o reemplazar lo que hay?',
-      buttons: [
-        { label: 'Cancelar', value: 'cancel', kind: 'ghost' },
-        { label: 'Reemplazar', value: 'replace', kind: 'danger' },
-        { label: 'Añadir al final', value: 'append', kind: 'primary' },
-      ],
-    });
-    if (value === 'cancel') return;
-    mode = value;
+  const mode = requestedMode;
+  if (mode === 'replace' && hasContent(drafts.fresh)) {
+    const ok = await confirmBox({title: '¿Empezar una captura nueva?', message: 'Se reemplazará la letra sin guardar. Las letras guardadas no se borran.', okLabel: 'Nueva captura'});
+    if (!ok) return;
   }
-
   ocrRunning = true;
+  let cropped;
+  try { cropped = await cropImage(file); }
+  catch (err) { toast(err.message); }
+  if (!cropped) { ocrRunning = false; return; }
   const controller = new AbortController();
   el.busyCancelHandler = () => {
     controller.abort();
     cancelOcr();
   };
-  showBusy(file);
+  showBusy(cropped);
   try {
-    const { text, confidence } = await readLyricsFromImage(file, {
+    const { text, confidence } = await readLyricsFromImage(cropped, {
       onStatus: onOcrStatus,
       signal: controller.signal,
     });
@@ -568,9 +569,14 @@ async function runOcr(file, requestedMode) {
       toast('No encontré texto en la foto. Prueba con más luz y de frente.', 3800);
       return;
     }
+    if (controller.signal.aborted) return;
+    if (mode === 'replace') drafts.fresh = emptyDraft();
     if (state.editing === false && state.view !== 'editor') await navigate('editor');
     const d = currentDraft();
+    d.transient = true;
+    d.ocrNotice = (confidence < 80 ? 'Hay texto de lectura dudosa. Revisa acentos, palabras y estrofas. ' : 'Revisa el texto y las estrofas antes de guardar. ') + 'La captura es temporal y se descarta al recargar.';
     d.lyrics = mode === 'append' && d.lyrics.trim() ? `${d.lyrics.trimEnd()}\n\n${text}` : text;
+    persistDraft.flush();
     renderEditor();
     onDraftChanged();
     el.lyrics.scrollTop = 0;
@@ -588,6 +594,9 @@ async function runOcr(file, requestedMode) {
     ocrRunning = false;
     el.busyCancelHandler = null;
     hideBusy();
+    cropped = null;
+    el.fileCamera.value = '';
+    el.fileGallery.value = '';
   }
 }
 
@@ -598,6 +607,7 @@ let wakeLock = null;
 
 async function keepAwake() {
   try {
+    if (wakeLock && !wakeLock.released) return;
     wakeLock = (await navigator.wakeLock?.request('screen')) ?? null;
   } catch {
     wakeLock = null;
@@ -629,11 +639,16 @@ function stepFont(direction) {
 }
 
 function openReader(id) {
+  mass.resetReader();
   const song = state.songs.find((s) => s.id === id);
   if (!song) return;
-  state.readerId = id;
+  displaySong(song);
+}
+
+function displaySong(song) {
+  state.readerId = song.id ?? null;
   el.rdTitle.textContent = song.title;
-  el.rdCat.textContent = catName(song);
+  el.rdCat.textContent = song.category ?? catName(song);
   el.rdLyrics.textContent = song.lyrics;
   applyFontSize(currentFontSize());
   el.reader.hidden = false;
@@ -645,9 +660,11 @@ function openReader(id) {
 function closeReader({ fromPop = false } = {}) {
   if (el.reader.hidden) return;
   el.reader.hidden = true;
+  mass.resetReader();
   state.readerId = null;
   releaseAwake();
   if (!fromPop && history.state?.reader) history.back();
+  if (state.view === 'mass') mass.show();
 }
 
 async function deleteFromReader() {
@@ -704,10 +721,10 @@ function renderSheet() {
     <section>
       <h3>Respaldo</h3>
       <div class="backup-actions">
-        <button type="button" class="btn secondary block" id="btn-export">${icon('download', 20)} Exportar mis letras</button>
+        <button type="button" class="btn secondary block" id="btn-export">${icon('download', 20)} Exportar letras y misas</button>
         <button type="button" class="btn secondary block" id="btn-import">${icon('upload', 20)} Importar un respaldo</button>
       </div>
-      <p class="note" style="margin-top:12px">Tus letras se guardan solo en este dispositivo. Exporta un respaldo de vez en cuando para no perderlas si borras los datos del navegador o cambias de teléfono.</p>
+      <p class="note" style="margin-top:12px">Tus letras y misas se guardan solo en este dispositivo. Exporta un respaldo de vez en cuando para no perderlas si borras los datos del navegador o cambias de teléfono.</p>
     </section>
     <p class="note">Mi Cancionero · versión ${esc(window.APP_VERSION)}</p>`;
 }
@@ -793,13 +810,13 @@ async function importBackup(file) {
   try {
     if (file.size > 30 * 1024 * 1024) throw new Error('El archivo es demasiado grande.');
     const data = JSON.parse(await file.text());
-    const { added, skipped } = await store.importAll(data);
+    const { added, skipped, massesAdded } = await store.importAll(data);
     await refresh();
     renderLibrary();
     renderCatSelect();
     if (!el.sheet.hidden) renderSheet();
     toast(
-      added
+      massesAdded ? `Respaldo importado: ${added} letras y ${massesAdded} misas nuevas.` : added
         ? `Se importaron ${plural(added, 'letra', 'letras')}${skipped ? ` (${skipped} ya estaban)` : ''}`
         : 'No había letras nuevas para importar',
       3600,
@@ -934,6 +951,7 @@ function bindEvents() {
   for (const input of [el.fileCamera, el.fileGallery]) {
     input.addEventListener('change', () => {
       const file = input.files?.[0];
+      input.value = '';
       if (file) runOcr(file, pendingMode);
     });
   }
@@ -982,7 +1000,16 @@ function bindEvents() {
   });
 
   // Guardar el borrador si la app se cierra o se actualiza
-  window.addEventListener('pagehide', () => persistDraft.flush());
+  window.addEventListener('pagehide', () => {
+    persistDraft.flush(); el.busyCancelHandler?.(); hideBusy();
+    el.fileCamera.value = ''; el.fileGallery.value = '';
+  });
+  window.addEventListener('pageshow', (event) => {
+    if (!event.persisted) return;
+    if (drafts.fresh.transient) drafts.fresh = emptyDraft();
+    if (drafts.edit?.transient) { state.editing = false; drafts.edit = null; }
+    persistDraft.flush(); renderEditor();
+  });
 }
 
 /* ============================================================
@@ -1005,6 +1032,7 @@ async function init() {
   applyView();
   renderInstallHint();
   initPWA({
+    canReload: () => !mass.isEditing() && !ocrRunning && !isEditDirty() && !hasContent(drafts.fresh),
     onBeforeReload: () => {
       persistDraft.flush();
       toast('Actualizando la app…');
@@ -1012,4 +1040,5 @@ async function init() {
   });
 }
 
+const mass = initMass({ getSongs: () => state.songs, categoryName: catName, openSong: displaySong });
 init();

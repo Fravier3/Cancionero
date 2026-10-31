@@ -1,5 +1,5 @@
 // Service worker del Cancionero. Subir la versión aquí, en version.json y en index.html en cada cambio.
-const VERSION = '1.0.0';
+const VERSION = '1.1.0';
 const CACHE = `cancionero-v${VERSION}`;
 
 const PRECACHE = [
@@ -9,6 +9,11 @@ const PRECACHE = [
   'version.json',
   'css/styles.css',
   'js/app.js',
+  'js/crop.js',
+  'js/mass.js',
+  'js/shared-mass.js',
+  'js/dates.js',
+  'js/ocr-layout.js',
   'js/db.js',
   'js/icons.js',
   'js/ocr.js',
@@ -39,7 +44,7 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => k.startsWith('cancionero-v') && k !== CACHE).map((k) => caches.delete(k))))
       .then(() => self.clients.claim()),
   );
 });
@@ -80,7 +85,7 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   if (request.method !== 'GET') return;
   const url = new URL(request.url);
-  if (url.origin !== self.location.origin) return;
+  if (url.origin !== self.location.origin || !url.pathname.startsWith(new URL(self.registration.scope).pathname)) return;
 
   const path = url.pathname;
   const isAppCode =
