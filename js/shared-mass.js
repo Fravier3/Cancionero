@@ -17,11 +17,7 @@ export async function fetchMass(date){
   return rows[0]||null;
 }
 export async function publishMass(date,entries,revision){
-  const clean=entries.map(e=>({title:e.title,lyrics:e.lyrics,category:e.category||''}));
-  if(clean.length>100)throw new Error('Puedes incluir hasta 100 canciones por misa.');
-  const rows=await request(revision===null?endpoint:`${endpoint}?date=eq.${encodeURIComponent(date)}&revision=eq.${revision}`,{
-    method:revision===null?'POST':'PATCH',body:JSON.stringify(revision===null?{date,entries:clean}:{entries:clean})
-  });
-  if(!rows.length)throw new ConflictError('La misa cambió mientras editabas. Carga la versión compartida y vuelve a editar.');
-  return rows[0];
+ const clean=entries.map(e=>({title:e.title,lyrics:e.lyrics,category:e.category||'',key:e.key||{note:'',mode:'',accidental:''},chords:e.chords||[],number:e.number||''}));
+ try {const {call}=await import('./api.js');const result=await call('mass_save',{date,entries:clean,revision});return result.mass;}
+ catch(error){if(error.status===409)throw new ConflictError(error.message);throw error;}
 }

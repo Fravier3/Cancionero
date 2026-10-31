@@ -126,7 +126,7 @@ export function initMass({ getSongs, categoryName, openSong, canEdit=()=>true })
     if(!editing||!canEdit())return;
     if(action==='add'){
       const song=getSongs().find(s=>s.id===Number(btn.dataset.id));if(!song)return;
-      await change(()=>entries.push({title:song.title,lyrics:song.lyrics,category:categoryName(song),songId:song.id}));
+      await change(()=>entries.push({title:song.title,lyrics:song.lyrics,category:categoryName(song),songId:song.id,key:song.key,chords:song.chords,number:song.number}));
       toast('Canción añadida. Guarda los cambios para compartirla.');return;
     }
     if(!entries[i])return;

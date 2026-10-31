@@ -3,7 +3,7 @@ import { $, $$, esc, norm, debounce, readStorage, writeStorage } from './util.js
 import { icon, hydrateIcons } from './icons.js';
 import * as store from './db.js';
 import { confirmBox, askText, modal, toast } from './ui.js';
-import { ocrSupported, readLyricsFromImage, cancelOcr } from './ocr.js';
+import { cancelOcr } from './ocr.js';
 import { initPWA } from './pwa.js';
 import { cropImage } from './crop.js';
 import { initMass } from './mass.js';
@@ -11,13 +11,17 @@ import { initAccess } from './access.js';
 import { initGospel } from './gospel.js';
 import { fetchMass } from './shared-mass.js';
 import { sundayFor } from './dates.js';
+import {renderMusic,rebaseChords,keyLabel,blankKey,initMusicEditor} from './music.js';
+import {initRecognition,recognizePhoto,clearPhoto,getPhoto,applyEnginePreference} from './recognition.js';
+import {call} from './api.js';
+import {clearSession} from './session.js';
 
 /* ============================================================
    Estado
    ============================================================ */
 const DRAFT_KEY = 'cancionero.draft.v2';
 // Older drafts mixed OCR results with persistent text; never restore those captures.
-writeStorage('cancionero.draft.v1', null);
+// Keep old draft keys untouched during the upgrade; originals remain recoverable.
 const FONT_KEY = 'cancionero.fontsize';
 const FONT_STEPS = [18, 20, 22, 24, 26, 28, 32, 36, 40, 46, 52, 58, 64];
 const NEW_CATEGORY = '__new__';
@@ -37,7 +41,8 @@ const state = {
   returnToReader: null,
 };
 
-const emptyDraft = () => ({ title: '', lyrics: '', categoryId: null });
+const emptyDraft = () => ({ title: '', lyrics: '', categoryId: null,number:'',key:blankKey(),chords:[] });
+const idValue=value=>/^\d+$/.test(String(value))?Number(value):value;
 
 function loadDraft() {
   try {
@@ -46,7 +51,7 @@ function loadDraft() {
       return {
         title: String(parsed.title ?? ''),
         lyrics: String(parsed.lyrics ?? ''),
-        categoryId: Number.isFinite(parsed.categoryId) ? parsed.categoryId : null,
+        categoryId: parsed.categoryId ?? null,number:String(parsed.number||''),key:parsed.key||blankKey(),chords:Array.isArray(parsed.chords)?parsed.chords:[],
       };
     }
   } catch {
@@ -112,12 +117,16 @@ async function refresh() {
   state.catById = new Map(cats.map((c) => [c.id, c]));
   state.localSongs = songs;
   mergeSongs();
-  if (typeof state.cat === 'number' && !state.catById.has(state.cat)) state.cat = 'all';
+  if (!['all','none'].includes(state.cat) && !state.catById.has(state.cat)) state.cat = 'all';
+  $('#sync-status').textContent=store.syncState.message;
+  const pending=await store.pendingLocal();
+  const banner=$('#migration-banner');banner.hidden=!pending.length||!access.isEditor();
+  banner.innerHTML=`<strong>${pending.length} canciones originales en este teléfono</strong><p>Están a salvo. Migra una copia a la biblioteca compartida para verlas en los demás dispositivos.</p><button type="button" id="migration-start" class="btn primary">Migrar canciones de este teléfono</button>`;
 }
 
 function mergeSongs(){
   const unique=new Set(state.localSongs.map(s=>norm(s.title)+'|'+norm(s.lyrics)));
-  state.songs=[...state.localSongs,...state.sharedSongs.filter(s=>!unique.has(norm(s.title)+'|'+norm(s.lyrics)))].map(s=>({...s,_t:norm(s.title),_l:norm(s.lyrics)}));
+  const seen=new Set();state.songs=[...state.localSongs,...state.sharedSongs.filter(s=>!unique.has(norm(s.title)+'|'+norm(s.lyrics)))].filter(s=>{const key=norm(s.title)+'|'+norm(s.lyrics);if(seen.has(key))return false;seen.add(key);return true;}).map(s=>({...s,_t:norm(s.title),_l:norm(s.lyrics)}));
   state.songs.sort((a,b)=>a._t.localeCompare(b._t,'es'));
 }
 let sharedLoading=false;
@@ -299,10 +308,7 @@ function renderLibrary() {
 /* ============================================================
    Navegación entre secciones
    ============================================================ */
-const isEditDirty = () => {
-  const d = drafts.edit;
-  return Boolean(d) && (d.title !== d.orig.title || d.lyrics !== d.orig.lyrics || d.categoryId !== d.orig.categoryId);
-};
+const isEditDirty = () => {const d=drafts.edit;return Boolean(d)&&JSON.stringify({title:d.title,lyrics:d.lyrics,categoryId:d.categoryId,number:d.number,key:d.key,chords:d.chords})!==JSON.stringify(d.orig);};
 
 function applyView() {
   for (const [name, node] of Object.entries(el.views)) node.hidden = name !== state.view;
@@ -336,10 +342,11 @@ async function navigate(view) {
     state.returnToReader = null;
   }
   if(method) state.addMode = method;
+  if(view!=='add')clearPhoto();
   state.view = view;
   updateDraftDot();
   if (view === 'add' && state.addMode === 'editor') renderEditor();
-  if (view === 'library') {renderLibrary();syncSharedSongs();}
+  if (view === 'library') {renderLibrary();store.syncLibrary();syncSharedSongs();}
   applyView();
   if (view === 'mass') await mass.show();
   if (view === 'gospel') await gospel.show();
@@ -379,12 +386,14 @@ function renderEditor() {
   $('#ocr-review').textContent = d.ocrNotice || 'Captura temporal: revisa la letra y guárdala. Al recargar se descarta.';
   el.title.value = d.title;
   el.lyrics.value = d.lyrics;
+  music.render();
   renderCatSelect();
   updateFirstLineButton();
   updateDraftDot();
 }
 
 function onDraftChanged() {
+  music.renderPreview();
   if (!state.editing) persistDraft();
   updateFirstLineButton();
   updateDraftDot();
@@ -393,7 +402,7 @@ function onDraftChanged() {
 async function onCategoryChange() {
   const d = currentDraft();
   if (el.cat.value !== NEW_CATEGORY) {
-    d.categoryId = el.cat.value ? Number(el.cat.value) : null;
+    d.categoryId = el.cat.value ? idValue(el.cat.value) : null;d.categorySuggested='';
     onDraftChanged();
     return;
   }
@@ -432,8 +441,11 @@ async function pasteFromClipboard() {
     const start = el.lyrics.selectionStart ?? d.lyrics.length;
     const end = el.lyrics.selectionEnd ?? start;
     const hasText = d.lyrics.trim() !== '';
+    const oldLyrics=d.lyrics;
     d.lyrics = hasText ? `${d.lyrics.slice(0, start)}${text}${d.lyrics.slice(end)}` : text;
+    d.chords=rebaseChords(oldLyrics,d.lyrics,d.chords||[]);
     el.lyrics.value = d.lyrics;
+    music.render();
     onDraftChanged();
     toast('Letra pegada. Ponle título y guarda.');
   } catch {
@@ -444,6 +456,8 @@ async function pasteFromClipboard() {
 
 async function saveCurrent() {
   const d = currentDraft();
+  if(!access.isEditor()){toast('Entra como Editor para guardar.');return;}
+  if((d.chords||[]).some(c=>c.needsReview)){toast('Revisa y confirma las posiciones marcadas en el editor de acordes.');return;}
   const title = d.title.trim();
   const lyrics = d.lyrics;
   if (!lyrics.trim()) {
@@ -467,7 +481,7 @@ async function saveCurrent() {
   }
   el.save.disabled = true;
   try {
-    const id = await store.saveSong({ id: d.id, title, lyrics, categoryId: d.categoryId });
+    const id = await store.saveSong({ ...d,title,lyrics });
     navigator.storage?.persist?.().catch?.(() => {});
     await refresh();
     if (state.editing) {
@@ -488,8 +502,8 @@ async function saveCurrent() {
       await navigate('library');
       toast('Letra guardada en tu lista');
     }
-  } catch {
-    toast('No se pudo guardar. Revisa el espacio del dispositivo.');
+  } catch (error) {
+    toast(error.message||'No se pudo guardar. Tus cambios siguen aquí.',5000);
   } finally {
     el.save.disabled = false;
   }
@@ -517,8 +531,9 @@ async function cancelEditing() {
 }
 
 function openEditorForEdit(song) {
-  const base = { title: song.title, lyrics: song.lyrics, categoryId: song.categoryId ?? null };
-  drafts.edit = { id: song.id, ...base, orig: { ...base } };
+  if(song.legacy){toast('Migra primero las canciones de este teléfono desde Configuración.',4500);return;}
+  const base={title:song.title,lyrics:song.lyrics,categoryId:song.categoryId??null,number:song.number||'',key:structuredClone(song.key||blankKey()),chords:structuredClone(song.chords||[])};
+  drafts.edit={id:song.id,revision:song.revision,...base,orig:structuredClone(base)};
   state.editing = true;
   state.view = 'add'; state.addMode = 'editor';
   renderEditor();
@@ -569,66 +584,26 @@ function onOcrStatus({ status, progress = 0 }) {
   el.busyBar.parentElement.setAttribute('aria-valuenow', String(Math.round(value * 100)));
 }
 
-async function runOcr(file, requestedMode) {
-  if (ocrRunning) return;
-  if (!ocrSupported()) {
-    toast('Este navegador no puede leer fotos. Pega la letra a mano.', 3600);
-    return;
-  }
-  const mode = requestedMode;
-  if (mode === 'replace' && hasContent(drafts.fresh)) {
-    const ok = await confirmBox({title: '¿Empezar una captura nueva?', message: 'Se reemplazará la letra sin guardar. Las letras guardadas no se borran.', okLabel: 'Nueva captura'});
-    if (!ok) return;
-  }
-  ocrRunning = true;
-  let cropped;
-  try { cropped = await cropImage(file); }
-  catch (err) { toast(err.message); }
-  if (!cropped) { ocrRunning = false; return; }
-  const controller = new AbortController();
-  el.busyCancelHandler = () => {
-    controller.abort();
-    cancelOcr();
-  };
-  showBusy(cropped);
-  try {
-    const { text, confidence } = await readLyricsFromImage(cropped, {
-      onStatus: onOcrStatus,
-      signal: controller.signal,
-    });
-    if (!text) {
-      toast('No encontré texto en la foto. Prueba con más luz y de frente.', 3800);
-      return;
-    }
-    if (controller.signal.aborted) return;
-    if (mode === 'replace') drafts.fresh = emptyDraft();
-    if (state.editing === false && (state.view !== 'add' || state.addMode !== 'editor')) await navigate('editor');
-    const d = currentDraft();
-    d.transient = true;
-    d.ocrNotice = (confidence < 80 ? 'Hay texto de lectura dudosa. Revisa acentos, palabras y estrofas. ' : 'Revisa el texto y las estrofas antes de guardar. ') + 'La captura es temporal y se descarta al recargar.';
-    d.lyrics = mode === 'append' && d.lyrics.trim() ? `${d.lyrics.trimEnd()}\n\n${text}` : text;
-    persistDraft.flush();
-    renderEditor();
-    onDraftChanged();
-    el.lyrics.scrollTop = 0;
-    toast(
-      confidence < 65
-        ? 'Foto poco clara: revisa bien el texto antes de guardar.'
-        : 'Letra leída. Revísala, ponle título y guarda.',
-      3800,
-    );
-  } catch (err) {
-    if (err?.name !== 'AbortError') {
-      toast('No pude leer la foto. Prueba con mejor luz o pega la letra.', 3800);
-    }
-  } finally {
-    ocrRunning = false;
-    el.busyCancelHandler = null;
-    hideBusy();
-    cropped = null;
-    el.fileCamera.value = '';
-    el.fileGallery.value = '';
-  }
+async function runOcr(file,requestedMode){
+ if(ocrRunning)return;if(!access.isEditor()){toast('Entra como Editor para reconocer fotos.');return;}
+ if(requestedMode==='replace'&&hasContent(drafts.fresh)&&!await confirmBox({title:'¿Reemplazar el borrador?',message:'La canción sin guardar se reemplazará con esta transcripción.',okLabel:'Continuar'}))return;
+ ocrRunning=true;let cropped;
+ try{if(file){clearPhoto();cropped=await cropImage(file);}else cropped=getPhoto();if(!cropped)return;
+  const controller=new AbortController();el.busyCancelHandler=()=>{controller.abort();cancelOcr();clearPhoto();};showBusy(cropped);el.busySub.textContent='Reconociendo letra y acordes. Puede tardar hasta dos minutos.';
+  const result=await recognizePhoto(cropped,{signal:controller.signal,onStatus:onOcrStatus});if(controller.signal.aborted)return;
+  if(requestedMode==='replace')drafts.fresh=emptyDraft();
+  if(!state.editing)await navigate('editor');const d=currentDraft();const previousLines=d.lyrics.split('\n').length;
+  if(requestedMode==='append'&&d.lyrics.trim()){
+   d.lyrics=d.lyrics.trimEnd()+'\n\n'+result.lyrics;const shift=d.lyrics.slice(0,d.lyrics.length-result.lyrics.length).split('\n').length-1;d.chords=[...(d.chords||[]),...(result.chords||[]).map(c=>({...c,line:c.line+shift}))];
+  }else{d.lyrics=result.lyrics;d.chords=result.chords||[];}
+  if(!d.title)d.title=result.title||'';if(!d.number)d.number=result.number||'';
+  if(result.key?.note)d.key=result.key;
+  const cat=state.cats.find(c=>norm(c.name)===norm(result.category));if(cat)d.categoryId=cat.id;else if(result.category)d.categorySuggested=result.category;
+  d.transient=true;d.ocrNotice=(result.warnings||[]).join(' · ')||'Revisa la letra, el título y todos los acordes antes de guardar.';
+  persistDraft.flush();renderEditor();if(d.categorySuggested){const option=new Option(d.categorySuggested+' (sugerida)','__suggested__');el.cat.add(option);el.cat.value='__suggested__';}
+  onDraftChanged();toast('Transcripción lista para revisión. Todavía no se ha guardado.',4500);
+ }catch(error){if(error.name!=='AbortError')toast(error.message||'No se pudo reconocer la foto.',6000);}
+ finally{ocrRunning=false;el.busyCancelHandler=null;hideBusy();cropped=null;el.fileCamera.value='';el.fileGallery.value='';}
 }
 
 /* ============================================================
@@ -680,15 +655,19 @@ function displaySong(song) {
   state.readerId = song.id ?? null;
   const editable = access.isEditor() && Boolean(song.id) && !song.shared;
   $('#rd-edit').hidden = !editable; $('#rd-delete').hidden = !editable;
-  el.rdTitle.textContent = song.title;
+  el.rdTitle.textContent = (song.number?song.number+' · ':'')+song.title;
   el.rdCat.textContent = song.category ?? catName(song);
-  el.rdLyrics.textContent = song.lyrics;
+  state.readerSong=song;
+  renderReaderMusic();
+  $('#rd-key').textContent=keyLabel(song.key);
   applyFontSize(currentFontSize());
   el.reader.hidden = false;
   el.rdScroll.scrollTop = 0;
   keepAwake();
   if (!history.state?.reader) history.pushState({ reader: true }, '');
 }
+
+function renderReaderMusic(){const song=state.readerSong;if(!song)return;const show=readStorage('cancionero.show-chords','1')==='1';$('#show-chords').checked=show;el.rdLyrics.innerHTML=renderMusic(song.lyrics,song.chords||[],show);}
 
 function closeReader({ fromPop = false } = {}) {
   if (el.reader.hidden) return;
@@ -711,7 +690,7 @@ async function deleteFromReader() {
     danger: true,
   });
   if (!ok) return;
-  await store.deleteSong(song.id);
+  try{await store.deleteSong(song.id);}catch(error){toast(error.message,5000);return;}
   await refresh();
   closeReader();
   renderLibrary();
@@ -731,6 +710,7 @@ function editFromReader() {
    Ajustes: categorías y respaldo
    ============================================================ */
 function renderSheet() {
+  if(!access.isEditor()){el.sheetBody.innerHTML='<section><h3>Acceso</h3><p>Estás en modo Visor.</p><button type="button" class="btn primary block" id="change-access">Cambiar modo de acceso</button></section><p class="note">Versión '+esc(window.APP_VERSION)+'</p>';return;}
   const counts = new Map();
   for (const s of state.songs) counts.set(s.categoryId, (counts.get(s.categoryId) ?? 0) + 1);
   const rows = state.cats
@@ -744,6 +724,7 @@ function renderSheet() {
     )
     .join('');
   el.sheetBody.innerHTML = `
+    <section><h3>Acceso y preferencias</h3><button type="button" class="btn secondary block" id="change-access">Cambiar modo de acceso</button><button type="button" class="btn ghost block" id="revoke-sessions">Cerrar todas las sesiones de Editor</button><label class="setting-toggle"><input type="checkbox" id="allow-ocr" ${readStorage('cancionero.allow-ocr')==='1'?'checked':''}> Permitir OCR tradicional</label><p class="note">OpenAI es el motor principal. El OCR tradicional solo aparece si activas esta opción.</p><button type="button" class="btn secondary block" id="migrate-settings">Migrar canciones de este teléfono</button><p id="migration-progress" role="status"></p></section>
     <section>
       <h3>Categorías</h3>
       <div class="cat-list">${rows || '<p class="note" style="padding:16px">Aún no tienes categorías.</p>'}</div>
@@ -759,13 +740,12 @@ function renderSheet() {
         <button type="button" class="btn secondary block" id="btn-export">${icon('download', 20)} Exportar letras y misas</button>
         <button type="button" class="btn secondary block" id="btn-import">${icon('upload', 20)} Importar un respaldo</button>
       </div>
-      <p class="note" style="margin-top:12px">Tus letras y misas se guardan solo en este dispositivo. Exporta un respaldo de vez en cuando para no perderlas si borras los datos del navegador o cambias de teléfono.</p>
+      <p class="note" style="margin-top:12px">La biblioteca central se comparte mediante Supabase. Los originales locales se conservan durante la migración. Los respaldos incluyen letras, tonalidades, acordes y misas; nunca fotografías.</p>
     </section>
     <p class="note">Mi Cancionero · versión ${esc(window.APP_VERSION)}</p>`;
 }
 
 function openSheet() {
-  if(!access.isEditor()) return;
   renderSheet();
   el.sheet.hidden = false;
 }
@@ -862,6 +842,16 @@ async function importBackup(file) {
   }
 }
 
+async function runMigration(){
+ if(!access.isEditor()){await access.show();return;}
+ const pending=await store.pendingLocal();if(!pending.length){toast('No hay canciones locales pendientes.');return;}
+ if(!await confirmBox({title:`¿Compartir ${pending.length} canciones?`,message:'Se subirán copias a Supabase. Los originales permanecerán en este teléfono.',okLabel:'Migrar copias'}))return;
+ const node=$('#migration-progress')||$('#migration-banner');
+ try{const result=await store.migrateLocal((done,total)=>{node.textContent=`Verificadas ${done} de ${total} canciones…`;});await refresh();renderLibrary();toast(result.pending?`Quedan ${result.pending} canciones por revisar. Los originales siguen guardados.`:`Se verificaron ${result.verified} canciones en Supabase.`,6000);if(!el.sheet.hidden)renderSheet();}
+ catch(error){toast(error.message,6000);await refresh();renderLibrary();}
+}
+async function revokeSessions(){if(!await confirmBox({title:'¿Cerrar todas las sesiones?',message:'Todos los editores tendrán que introducir la contraseña de nuevo.',okLabel:'Cerrar sesiones'}))return;try{await call('revoke_all');await clearSession();closeSheet();toast('Sesiones revocadas.');}catch(error){toast(error.message);}}
+
 /* ============================================================
    Eventos
    ============================================================ */
@@ -890,7 +880,7 @@ function bindEvents() {
     const chip = e.target.closest('.chip');
     if (!chip) return;
     const value = chip.dataset.cat;
-    state.cat = value === 'all' || value === 'none' ? value : Number(value);
+    state.cat = value === 'all' || value === 'none' ? value : idValue(value);
     renderChips();
     renderList();
   });
@@ -909,7 +899,7 @@ function bindEvents() {
     onDraftChanged();
   });
   el.lyrics.addEventListener('input', () => {
-    currentDraft().lyrics = el.lyrics.value;
+    const d=currentDraft();d.chords=rebaseChords(d.lyrics,el.lyrics.value,d.chords||[]);d.lyrics=el.lyrics.value;music.render();
     onDraftChanged();
   });
   el.cat.addEventListener('change', onCategoryChange);
@@ -940,6 +930,10 @@ function bindEvents() {
       if (file) runOcr(file, pendingMode);
     });
   }
+  $('#reprocess-photo').addEventListener('click',async()=>{await navigate('scan');runOcr(null,'replace');});
+  $('#show-chords').addEventListener('change',()=>{writeStorage('cancionero.show-chords',$('#show-chords').checked?'1':'0');renderReaderMusic();});
+  $('#sync-refresh').addEventListener('click',()=>store.syncLibrary());
+  $('#migration-banner').addEventListener('click',e=>{if(e.target.closest('#migration-start'))runMigration();});
   $('#busy-cancel').addEventListener('click', () => el.busyCancelHandler?.());
 
   // Lectura
@@ -966,14 +960,18 @@ function bindEvents() {
   el.sheetBody.addEventListener('click', (e) => {
     const row = e.target.closest('.cat-row');
     const act = e.target.closest('[data-act]')?.dataset.act;
-    if (row && act === 'rename') sheetRename(Number(row.dataset.id));
-    else if (row && act === 'delete') sheetDelete(Number(row.dataset.id));
+    if(e.target.closest('#change-access')){closeSheet();access.show();return;}
+    if(e.target.closest('#migrate-settings')){runMigration();return;}
+    if(e.target.closest('#revoke-sessions')){revokeSessions();return;}
+    if (row && act === 'rename') sheetRename(idValue(row.dataset.id));
+    else if (row && act === 'delete') sheetDelete(idValue(row.dataset.id));
     else if (e.target.closest('#btn-export')) exportBackup();
     else if (e.target.closest('#btn-import')) {
       el.fileImport.value = '';
       el.fileImport.click();
     }
   });
+  el.sheetBody.addEventListener('change',e=>{if(e.target.id==='allow-ocr'){writeStorage('cancionero.allow-ocr',e.target.checked?'1':'0');applyEnginePreference();}});
   el.sheetBody.addEventListener('submit', (e) => {
     e.preventDefault();
     const input = $('#cat-new', el.sheetBody);
@@ -986,7 +984,7 @@ function bindEvents() {
 
   // Guardar el borrador si la app se cierra o se actualiza
   window.addEventListener('pagehide', () => {
-    persistDraft.flush(); el.busyCancelHandler?.(); hideBusy();
+    persistDraft.flush(); el.busyCancelHandler?.(); hideBusy();clearPhoto();
     el.fileCamera.value = ''; el.fileGallery.value = '';
   });
   window.addEventListener('pageshow', (event) => {
@@ -1002,6 +1000,7 @@ function bindEvents() {
    ============================================================ */
 async function init() {
   hydrateIcons(document);
+  initRecognition();
   bindEvents();
   try {
     await refresh();
@@ -1016,7 +1015,7 @@ async function init() {
   updateDraftDot();
   applyView();
   applyAccess();
-  syncSharedSongs();
+  store.syncLibrary();syncSharedSongs();
   initPWA({
     canReload: () => !access.isChoosing() && !mass.isEditing() && !ocrRunning && !isEditDirty() && !hasContent(drafts.fresh),
     onBeforeReload: () => {
@@ -1028,10 +1027,10 @@ async function init() {
 
 function applyAccess(){
   const editor=access.isEditor();
-  $('[data-tab="add"]').hidden=!editor;$('#btn-settings').hidden=!editor;
+  $('[data-tab="add"]').hidden=!editor;$('#btn-settings').hidden=false;
   document.body.dataset.mode=editor?'editor':'viewer';
   if(!editor && state.view==='add'){state.editing=false;drafts.edit=null;state.view='library';}
-  mass.setCanEdit(editor);renderLibrary();applyView();
+  mass.setCanEdit(editor);if(!editor){clearPhoto();closeSheet();}refresh().then(()=>{renderLibrary();applyView();}).catch(()=>{});
 }
 const mass = initMass({ getSongs: () => state.songs.filter(s=>!s.shared), categoryName: catName, openSong: song=>{gospel.resetReader();displaySong(song);}, canEdit:()=>access.isEditor() });
 const gospel = initGospel({openReading:displaySong,closeOtherReaders:()=>mass.resetReader()});
@@ -1040,7 +1039,10 @@ const access = initAccess({onChange:()=>{applyAccess();closeReader();},beforeCha
   if(mass.isEditing())return confirmBox({title:'¿Cambiar el modo?',message:'Hay una misa en edición. Guarda sus cambios antes de cambiar el modo.',okLabel:'Continuar'});
   return true;
 }});
+const music=initMusicEditor({getDraft:currentDraft,onChanged:onDraftChanged});
+window.addEventListener('cancionero:sync',async()=>{await refresh();renderLibrary();if(!el.sheet.hidden)renderSheet();});
+window.addEventListener('online',()=>store.syncLibrary());
 window.addEventListener('cancionero:mass-updated',syncSharedSongs);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&state.view==='library')syncSharedSongs();});
-setInterval(()=>{if(state.view==='library'&&document.visibilityState==='visible')syncSharedSongs();},15000);
+setInterval(()=>{if(state.view==='library'&&document.visibilityState==='visible'){store.syncLibrary();syncSharedSongs();}},30000);
 init();

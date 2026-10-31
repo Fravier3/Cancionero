@@ -1212,3 +1212,16 @@ html, body, #app, .topbar, .tabbar { background: #fff; color-scheme: only light;
 
 .brand-mark {overflow:hidden;}
 .brand-mark img {display:block;width:100%;height:100%;object-fit:cover;border-radius:inherit;}
+.error-note{color:#a52121;font-weight:600;line-height:1.5;}
+#mode-password{font:inherit;font-size:18px;padding:14px;border:1.5px solid var(--line);border-radius:12px;width:100%;}
+.sync-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0;}.sync-toolbar p{color:var(--muted);font-size:12px;line-height:1.5;}
+.migration-banner{padding:16px;margin:12px 0;border:1px solid #d6c591;border-radius:14px;background:#fffae9;}.migration-banner p{font-size:14px;line-height:1.5;margin:8px 0 14px;}
+.song-metadata{display:grid;grid-template-columns:1fr 1.6fr;gap:16px;}.key-field{border:0;padding:0;margin:0;min-width:0;}.key-field>div{display:flex;gap:8px;}.key-field select{min-width:0;width:50%;}
+.music-editor-panel{margin:18px 0;border:1px solid var(--line);padding:14px;border-radius:14px;}.music-editor-panel summary{font-weight:750;cursor:pointer;min-height:36px;}.music-editor-panel>.note{margin:12px 0;}
+.chord-add-row{display:flex;gap:8px;margin:12px 0;}.chord-add-row input{flex:1;min-width:0;font:inherit;font-size:16px;border:1px solid var(--line);border-radius:10px;padding:10px;}
+.chord-edit-row{display:grid;grid-template-columns:1.2fr .8fr .8fr 40px;gap:8px;padding:12px 0;border-bottom:1px solid var(--line);}.chord-edit-row label{font-size:12px;font-weight:650;min-width:0;}.chord-edit-row input{font:inherit;font-size:16px;width:100%;min-width:0;min-height:44px;border:1px solid var(--line);border-radius:8px;padding:8px;}.chord-edit-row.review{background:#fff4e3;}.chord-edit-row .btn{grid-column:1/-1;}
+.music-preview{white-space:pre-wrap;font-size:20px;line-height:1.5;padding:12px 0;color:#000;overflow-wrap:anywhere;}
+.music-line{display:block;white-space:pre-wrap;line-height:1.35;}.music-line.blank{min-height:1em;}.music-word{display:inline-grid;grid-template-rows:auto auto;vertical-align:bottom;white-space:pre-wrap;}.music-word.anchored{display:inline-flex;align-items:end;}.music-fragment{display:inline-grid;grid-template-rows:auto auto;vertical-align:bottom;}.chord-cell{color:#b51f24;font-size:.72em;font-weight:750;line-height:1.25;min-height:1.25em;padding-right:.15em;white-space:pre;}
+.reader-options{display:flex;gap:12px;justify-content:space-between;align-items:center;padding:10px max(18px,env(safe-area-inset-right)) 10px max(18px,env(safe-area-inset-left));border-bottom:1px solid var(--line);font-size:14px;background:white;flex:none;}.reader-options label{display:flex;align-items:center;gap:8px;min-height:30px;}.reader-options input,.setting-toggle input{width:20px;height:20px;accent-color:var(--primary);}.setting-toggle{display:flex;gap:12px;align-items:center;margin:20px 0 8px;min-height:44px;font-weight:650;}
+.ai-controls{display:grid;gap:12px;margin-bottom:20px;text-align:left;}.ai-controls select{font:inherit;font-size:16px;width:100%;min-height:48px;border:1px solid var(--line);border-radius:10px;padding:10px;background:white;color:var(--text);}.ai-controls .note{font-size:12px;line-height:1.6;}.scan{max-width:680px;}
+@media(max-width:480px){.song-metadata{grid-template-columns:1fr;gap:0;}.key-field{margin-bottom:16px;}}

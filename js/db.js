@@ -1,175 +1,59 @@
-// Almacenamiento local (IndexedDB con Dexie): letras y categorías.
-import { norm } from './util.js';
-import { parseDate } from './dates.js';
-
-const Dexie = window.Dexie;
-
-export const db = new Dexie('cancionero');
-
-db.version(1).stores({
-  songs: '++id, titleKey, categoryId, updatedAt',
-  categories: '++id, &key',
-});
-
-db.version(2).stores({ songs: '++id, titleKey, categoryId, updatedAt', categories: '++id, &key', masses: '&date' });
-
-export const DEFAULT_CATEGORIES = [
-  'Entrada',
-  'Piedad',
-  'Gloria',
-  'Aleluya',
-  'Ofertorio',
-  'Santo',
-  'Cordero de Dios',
-  'Comunión',
-  'Acción de gracias',
-  'Salida',
-];
-
-// Solo se ejecuta la primera vez que se crea la base de datos.
-db.on('populate', (tx) => {
-  tx.table('categories').bulkAdd(
-    DEFAULT_CATEGORIES.map((name, order) => ({ name, key: norm(name), order })),
-  );
-});
-
-/* ---------- Letras ---------- */
-
-/** Limpia saltos de línea y espacios sobrantes sin tocar el contenido. */
-export function cleanLyrics(text) {
-  return String(text ?? '')
-    .replace(/\r\n?/g, '\n')
-    .split('\n')
-    .map((line) => line.replace(/[ \t]+$/g, ''))
-    .join('\n')
-    .replace(/^\n+|\n+$/g, '');
+import {norm} from './util.js';
+import {call,publicRows} from './api.js';
+export const db=new window.Dexie('cancionero');
+db.version(1).stores({songs:'++id, titleKey, categoryId, updatedAt',categories:'++id, &key'});
+db.version(2).stores({songs:'++id, titleKey, categoryId, updatedAt',categories:'++id, &key',masses:'&date'});
+// Add only new stores. Original songs/categories and the Misa cache are untouched.
+db.version(3).stores({cloudSongs:'id,categoryId',cloudCategories:'id',migrationMap:'localId,cloudId',meta:'id'});
+export const DEFAULT_CATEGORIES=['Entrada','Piedad','Gloria','Aleluya','Ofertorio','Santo','Cordero de Dios','Comunión','Acción de gracias','Salida'];
+db.on('populate',tx=>tx.table('categories').bulkAdd(DEFAULT_CATEGORIES.map((name,order)=>({name,key:norm(name),order}))));
+export const cleanLyrics=text=>String(text??'').replace(/\r\n?/g,'\n').replace(/^\n+|\n+$/g,'');
+export const emptyKey=()=>({note:'',mode:'',accidental:''});
+const adapt=s=>({...s,categoryId:s.category_id??s.categoryId??null,titleKey:norm(s.title),updatedAt:s.updated_at?Date.parse(s.updated_at):s.updatedAt,key:s.key||emptyKey(),chords:s.chords||[],number:s.number||'',remote:true});
+let syncing=null;
+export let syncState={ok:false,message:'Cargando biblioteca guardada…'};
+export function syncLibrary(){
+ if(syncing)return syncing;
+ syncing=(async()=>{try{
+  const [songs,categories]=await Promise.all([publicRows('cancionero_songs'),publicRows('cancionero_categories')]);
+  await db.transaction('rw',db.cloudSongs,db.cloudCategories,db.meta,async()=>{await db.cloudSongs.clear();await db.cloudSongs.bulkPut(songs.map(adapt));await db.cloudCategories.clear();await db.cloudCategories.bulkPut(categories);await db.meta.put({id:'lastSync',at:Date.now(),count:songs.length});});
+  syncState={ok:true,message:`Biblioteca sincronizada · ${songs.length} canciones`};
+ }catch{syncState={ok:false,message:'Sin conexión · mostrando la biblioteca guardada. Actualiza para reintentar.'};}
+ finally{syncing=null;window.dispatchEvent(new Event('cancionero:sync'));}return syncState;})();return syncing;
 }
-
-export const listSongs = () => db.songs.toArray();
-
-export async function saveSong({ id, title, lyrics, categoryId }) {
-  const now = Date.now();
-  const record = {
-    title: String(title).trim().replace(/\s+/g, ' '),
-    lyrics: cleanLyrics(lyrics),
-    categoryId: categoryId ?? null,
-    titleKey: norm(title),
-    updatedAt: now,
-  };
-  if (id) {
-    await db.songs.update(id, record);
-    return id;
-  }
-  record.createdAt = now;
-  return db.songs.add(record);
+export async function pendingLocal(){const [songs,map]=await Promise.all([db.songs.toArray(),db.migrationMap.toArray()]);const done=new Set(map.map(m=>m.localId));return songs.filter(s=>!done.has(s.id));}
+export async function listSongs(){const [cloud,local]=await Promise.all([db.cloudSongs.toArray(),pendingLocal()]);return [...cloud,...local.map(s=>({...adapt(s),remote:false,legacy:true}))];}
+export async function listCategories(){const [cloud,local]=await Promise.all([db.cloudCategories.toArray(),db.categories.toArray()]);const names=new Set(cloud.map(c=>norm(c.name)));return [...cloud,...local.filter(c=>!names.has(norm(c.name))).map(c=>({...c,legacy:true}))].sort((a,b)=>a.name.localeCompare(b.name,'es'));}
+async function categoryName(id){if(id==null)return '';const cats=await listCategories();return cats.find(c=>String(c.id)===String(id))?.name||'';}
+async function deviceId(){let row=await db.meta.get('device');if(!row){row={id:'device',value:crypto.randomUUID()};await db.meta.put(row);}return row.value;}
+function normalized(s,category){return {title:s.title.trim(),lyrics:cleanLyrics(s.lyrics),number:s.number||'',key:s.key||emptyKey(),chords:s.chords||[],category,origin:s.origin||''};}
+export async function migrateLocal(onProgress=()=>{}){
+ const originals=await pendingLocal(),device=await deviceId(),categories=await db.categories.toArray();let verified=0;
+ // Immutable, text-only checkpoint before first network write.
+ if(originals.length&&!await db.meta.get('legacyBackup'))await db.meta.put({id:'legacyBackup',at:Date.now(),songs:await db.songs.toArray(),categories});
+ for(let at=0;at<originals.length;at+=10){const batch=originals.slice(at,at+10);const songs=batch.map(s=>({...normalized(s,categories.find(c=>c.id===s.categoryId)?.name||''),origin:`device:${device}:${s.id}`}));
+  const result=await call('migrate',{songs});
+  for(const [i,item] of result.results.entries()){
+   if(item.song?.deleted_at)continue;
+   if(!item.song?.id||item.song.lyrics==null)throw new Error('No se pudo verificar una canción. Los originales siguen en este teléfono.');
+   await db.transaction('rw',db.migrationMap,db.cloudSongs,async()=>{await db.migrationMap.put({localId:batch[i].id,cloudId:item.song.id,origin:item.origin,verifiedAt:Date.now()});await db.cloudSongs.put(adapt(item.song));});verified++;
+  }onProgress(verified,originals.length);
+ }await syncLibrary();return {verified,total:originals.length,pending:(await pendingLocal()).length};
 }
-
-export const deleteSong = (id) => db.songs.delete(id);
-
-/* ---------- Categorías ---------- */
-
-export async function listCategories() {
-  const all = await db.categories.toArray();
-  return all.sort(
-    (a, b) => (a.order ?? 0) - (b.order ?? 0) || a.name.localeCompare(b.name, 'es'),
-  );
+export async function saveSong(s){
+ if(s.legacy||typeof s.id==='number')throw new Error('Migra primero las canciones de este teléfono desde Configuración. El original seguirá guardado.');
+ const result=await call('song_save',{...normalized(s,s.categorySuggested||await categoryName(s.categoryId)),id:s.id||'',revision:s.revision||null});const saved=result.results[0].song;await db.cloudSongs.put(adapt(saved));await syncLibrary();return saved.id;
 }
-
-function cleanName(name) {
-  return String(name ?? '').trim().replace(/\s+/g, ' ').slice(0, 40);
-}
-
-export async function addCategory(rawName) {
-  const name = cleanName(rawName);
-  const key = norm(name);
-  if (!key) throw new Error('Escribe un nombre para la categoría.');
-  const existing = await db.categories.where('key').equals(key).first();
-  if (existing) return existing;
-  const all = await db.categories.toArray();
-  const order = Math.max(-1, ...all.map((c) => c.order ?? 0)) + 1;
-  const id = await db.categories.add({ name, key, order });
-  return { id, name, key, order };
-}
-
-export async function renameCategory(id, rawName) {
-  const name = cleanName(rawName);
-  const key = norm(name);
-  if (!key) throw new Error('Escribe un nombre para la categoría.');
-  const clash = await db.categories.where('key').equals(key).first();
-  if (clash && clash.id !== id) throw new Error('Ya existe una categoría con ese nombre.');
-  await db.categories.update(id, { name, key });
-}
-
-/** Elimina la categoría; las letras que la usaban quedan "sin categoría". */
-export function deleteCategory(id) {
-  return db.transaction('rw', db.songs, db.categories, async () => {
-    await db.songs.where('categoryId').equals(id).modify({ categoryId: null });
-    await db.categories.delete(id);
-  });
-}
-
-/* ---------- Respaldo ---------- */
-
-export async function exportAll() {
-  const [categories, songs, masses] = await Promise.all([listCategories(), listSongs(), db.masses.toArray()]);
-  return {
-    app: 'cancionero',
-    version: 2,
-    masses,
-    exportedAt: new Date().toISOString(),
-    categories: categories.map(({ id, name, order }) => ({ id, name, order })),
-    songs: songs.map(({ title, lyrics, categoryId, createdAt, updatedAt }) => ({
-      title,
-      lyrics,
-      categoryId,
-      createdAt,
-      updatedAt,
-    })),
-  };
-}
-
-/** Mezcla un respaldo con lo que ya hay: nunca borra ni duplica letras idénticas. */
-export async function importAll(data) {
-  if (!data || data.app !== 'cancionero' || !Array.isArray(data.songs)) {
-    throw new Error('El archivo no es un respaldo del Cancionero.');
-  }
-  const idMap = new Map();
-  for (const cat of Array.isArray(data.categories) ? data.categories : []) {
-    if (typeof cat?.name !== 'string') continue;
-    const created = await addCategory(cat.name);
-    idMap.set(cat.id, created.id);
-  }
-  const existing = await listSongs();
-  const seen = new Set(existing.map((s) => `${s.titleKey}|${norm(s.lyrics)}`));
-  let added = 0;
-  let skipped = 0;
-  for (const s of data.songs) {
-    if (typeof s?.title !== 'string' || typeof s?.lyrics !== 'string') {
-      skipped += 1;
-      continue;
-    }
-    const signature = `${norm(s.title)}|${norm(s.lyrics)}`;
-    if (seen.has(signature)) {
-      skipped += 1;
-      continue;
-    }
-    seen.add(signature);
-    const id = await saveSong({
-      title: s.title.slice(0, 200),
-      lyrics: s.lyrics.slice(0, 50000),
-      categoryId: idMap.get(s.categoryId) ?? null,
-    });
-    if (Number.isFinite(s.createdAt)) await db.songs.update(id, { createdAt: s.createdAt });
-    added += 1;
-  }
-  let massesAdded = 0;
-  for (const mass of Array.isArray(data.masses) ? data.masses : []) {
-    const date = parseDate(mass?.date || '');
-    if (!date || date.getDay() !== 0 || !Array.isArray(mass.entries) || await db.masses.get(mass.date)) continue;
-    const entries = mass.entries.filter(e => typeof e?.title === 'string' && typeof e?.lyrics === 'string')
-      .slice(0, 200).map(e => ({ title: e.title.slice(0,200), lyrics: e.lyrics.slice(0,50000), category: String(e.category || '').slice(0,40) }));
-    await db.masses.put({ date: mass.date, entries, updatedAt: Date.now() });
-    massesAdded++;
-  }
-  return { added, skipped, massesAdded };
+export async function deleteSong(id){const s=await db.cloudSongs.get(id);if(!s)throw new Error('Migra primero la canción local antes de eliminarla de la biblioteca central.');await call('song_delete',{id,revision:s.revision});await db.cloudSongs.delete(id);await syncLibrary();}
+export async function addCategory(name){const result=await call('category_save',{name});await db.cloudCategories.put(result.category);return result.category;}
+export async function renameCategory(id,name){const c=await db.cloudCategories.get(id);if(!c)throw new Error('Sincroniza o migra primero esta categoría.');const result=await call('category_save',{id,name,revision:c.revision});await db.cloudCategories.put(result.category);await syncLibrary();}
+export async function deleteCategory(id){const c=await db.cloudCategories.get(id);if(!c)throw new Error('Sincroniza o migra primero esta categoría.');await call('category_delete',{id,revision:c.revision});await syncLibrary();}
+export async function exportAll(){return {app:'cancionero',version:3,exportedAt:new Date().toISOString(),songs:await listSongs(),categories:await listCategories(),masses:await db.masses.toArray(),legacyOriginals:await db.songs.toArray()};}
+export async function importAll(data){
+ if(data?.app!=='cancionero'||!Array.isArray(data.songs))throw new Error('El archivo no es un respaldo de Cancionero.');
+ const cats=Array.isArray(data.categories)?data.categories:[];let added=0,skipped=0;
+ const importId=crypto.randomUUID();
+ for(let at=0;at<data.songs.length;at+=10){const result=await call('migrate',{songs:data.songs.slice(at,at+10).map((s,i)=>({...normalized(s,cats.find(c=>String(c.id)===String(s.categoryId??s.category_id))?.name||s.category||''),origin:`import:${importId}:${at+i}`}))});for(const r of result.results){if(r.existing)skipped++;else added++;}}
+ let massesAdded=0;for(const m of data.masses||[]){if(/^\d{4}-\d{2}-\d{2}$/.test(m.date)&&Array.isArray(m.entries)&&!await db.masses.get(m.date)){await db.masses.put(m);massesAdded++;}}
+ await syncLibrary();return {added,skipped,massesAdded};
 }
