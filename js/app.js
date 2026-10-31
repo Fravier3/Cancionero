@@ -1,4 +1,5 @@
 // Mi Cancionero — lógica principal de la interfaz.
+import {searchSongs,searchText} from './search.js';
 import {categoryIds,categoryLabels} from './categories.js';
 import { $, $$, esc, norm, debounce, readStorage, writeStorage } from './util.js';
 import { icon, hydrateIcons } from './icons.js';
@@ -151,32 +152,12 @@ const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 /* ============================================================
    Biblioteca: búsqueda, filtros y lista
    ============================================================ */
-function searchSongs(items, rawQuery) {
-  const phrase = norm(rawQuery);
-  if (!phrase) return items.map((s) => ({ s, score: 0 }));
-  const tokens = phrase.split(' ');
-  const out = [];
-  for (const s of items) {
-    const hay = `${s._t} ${s._l}`;
-    let score;
-    if (s._t.startsWith(phrase)) score = 0;
-    else if (s._t.includes(phrase)) score = 1;
-    else if (tokens.every((t) => s._t.includes(t))) score = 2;
-    else if (s._l.includes(phrase)) score = 3;
-    else if (tokens.every((t) => hay.includes(t))) score = 4;
-    else continue;
-    out.push({ s, score });
-  }
-  out.sort((a, b) => a.score - b.score || a.s._t.localeCompare(b.s._t, 'es'));
-  return out;
-}
-
 /** Devuelve la línea de la letra que contiene lo buscado, para mostrarla bajo el título. */
 function snippetFor(song, rawQuery) {
-  const phrase = norm(rawQuery);
+  const phrase = searchText(rawQuery);
   const tokens = phrase.split(' ');
   const lines = song.lyrics.split('\n');
-  const normalized = lines.map(norm);
+  const normalized = lines.map(searchText);
   let index = normalized.findIndex((l) => l.includes(phrase));
   if (index < 0) {
     for (let i = 0; i < normalized.length - 1; i += 1) {
@@ -256,7 +237,7 @@ function emptyHtml() {
 }
 
 function renderList() {
-  const searching = norm(state.q) !== '';
+  const searching = state.q.trim() !== '';
   el.qClear.hidden = state.q === '';
   if (state.songs.length === 0) {
     el.info.textContent = '';

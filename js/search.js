@@ -1,0 +1,3 @@
+// Match a continuous phrase; never combine loose words from unrelated positions.
+export const searchText=value=>String(value??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('es').replace(/\s+/g,' ').trim();
+export function searchSongs(items,query){const phrase=searchText(query);if(!phrase)return items.map(s=>({s,score:0}));return items.flatMap(s=>{const title=searchText(s.title),lyrics=searchText(s.lyrics);const score=title.startsWith(phrase)?0:title.includes(phrase)?1:lyrics.includes(phrase)?3:null;return score===null?[]:[{s,score}];}).sort((a,b)=>a.score-b.score||a.s.title.localeCompare(b.s.title,'es'));}
