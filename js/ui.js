@@ -68,11 +68,11 @@ export async function confirmBox({ title, message, okLabel = 'Aceptar', danger =
 }
 
 /** Pide un texto corto. Devuelve el texto o null si se cancela. */
-export async function askText({ title, message, placeholder, value, okLabel = 'Guardar', label }) {
+export async function askText({ title, message, placeholder, value, okLabel = 'Guardar', label, maxLength=60 }) {
   const result = await modal({
     title,
     message,
-    input: { placeholder, value, label },
+    input: { placeholder, value, label, maxLength },
     buttons: [
       { label: 'Cancelar', value: 'cancel', kind: 'ghost' },
       { label: okLabel, value: 'ok', kind: 'primary' },

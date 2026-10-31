@@ -60,6 +60,7 @@ function loadDraft() {
   return emptyDraft();
 }
 
+let captureQueue=[],captureTotal=0,captureIndex=0;
 const drafts = { fresh: loadDraft(), edit: null };
 const currentDraft = () => (state.editing ? drafts.edit : drafts.fresh);
 const hasContent = (d) => Boolean(d.title.trim() || d.lyrics.trim());
@@ -324,6 +325,8 @@ function applyView() {
 
 async function navigate(view) {
   const method = ['editor','scan'].includes(view) ? view : null;
+  if(captureTotal&&(view!=='add'&&view!=='editor'||method==='scan')){if(!await confirmBox({title:'¿Salir de la revisión?',message:'Las canciones que ya guardaste se conservan. Las pendientes de esta foto se descartarán.',okLabel:'Salir'}))return false;captureQueue=[];captureTotal=0;captureIndex=0;drafts.fresh=emptyDraft();persistDraft.flush();}
+
   if(method) view = 'add';
   if(view === 'add' && !access.isEditor()) return false;
   if (state.editing) {
@@ -376,11 +379,14 @@ function updateDraftDot() {
 }
 
 function renderEditor() {
+  $('#capture-progress').hidden=!captureTotal;$('#capture-progress').textContent=captureTotal?`He detectado ${captureTotal} canciones. Vamos a validarlas una a una. Canción ${captureIndex} de ${captureTotal}.`:'';
+  $('#capture-skip').hidden=!captureTotal;el.save.textContent=captureTotal?(captureQueue.length?'Guardar y continuar':'Guardar y terminar'):'Guardar canción';
+
   const d = currentDraft();
   el.editorTitle.textContent = state.editing ? 'Editar canción' : 'Nueva canción';
   el.editorCancel.hidden = !state.editing;
   el.clear.hidden = state.editing;
-  el.save.lastChild.textContent = state.editing ? ' Guardar cambios' : ' Guardar letra';
+  if(!captureTotal)el.save.textContent=state.editing?'Guardar cambios':'Guardar canción';
   $('#ocr-review').hidden = !d.transient;
   $('#ocr-review').textContent = d.ocrNotice || 'Captura temporal: revisa la letra y guárdala. Al recargar se descarta.';
   el.title.value = d.title;
@@ -492,6 +498,7 @@ async function saveCurrent() {
       toast('Cambios guardados');
       if (back) openReader(id);
     } else {
+      if(captureTotal){await nextCapture();return;}
       drafts.fresh = emptyDraft();
       persistDraft.flush();
       state.q = '';
@@ -517,6 +524,7 @@ async function clearDraft() {
     danger: true,
   });
   if (!ok) return;
+  captureQueue=[];captureTotal=0;captureIndex=0;
   drafts.fresh = emptyDraft();
   persistDraft.flush();
   renderEditor();
@@ -583,14 +591,28 @@ function onOcrStatus({ status, progress = 0 }) {
   el.busyBar.parentElement.setAttribute('aria-valuenow', String(Math.round(value * 100)));
 }
 
+function fillCapture(result){
+ const d=currentDraft();d.lyrics=result.lyrics;d.chords=result.chords||[];d.title=result.title||'';d.number=result.number||'';d.key=result.key||blankKey();
+ const cat=state.cats.find(c=>norm(c.name)===norm(result.category));d.categoryId=cat?.id||null;d.categorySuggested=cat?'':result.category||'';
+ d.transient=true;d.ocrNotice=(result.warnings||[]).join(' · ')||'Revisa la letra, el título y los acordes antes de guardar.';
+ persistDraft.flush();renderEditor();if(d.categorySuggested){el.cat.add(new Option(d.categorySuggested+' (sugerida)','__suggested__'));el.cat.value='__suggested__';}onDraftChanged();
+}
+async function nextCapture(){
+ if(captureQueue.length){captureIndex++;drafts.fresh=emptyDraft();fillCapture(captureQueue.shift());window.scrollTo(0,0);return;}
+ captureTotal=0;captureIndex=0;captureQueue=[];drafts.fresh=emptyDraft();persistDraft.flush();clearPhoto();state.q='';el.q.value='';state.cat='all';await navigate('library');toast('Revisión terminada. Las canciones guardadas están en la biblioteca.');
+}
 async function runOcr(file,requestedMode){
  if(ocrRunning)return;if(!access.isEditor()){toast('Entra como Editor para reconocer fotos.');return;}
  if(requestedMode==='replace'&&hasContent(drafts.fresh)&&!await confirmBox({title:'¿Reemplazar el borrador?',message:'La canción sin guardar se reemplazará con esta transcripción.',okLabel:'Continuar'}))return;
  ocrRunning=true;let cropped;
  try{if(file){clearPhoto();cropped=await cropImage(file);}else cropped=getPhoto();if(!cropped)return;
   const controller=new AbortController();el.busyCancelHandler=()=>{controller.abort();cancelOcr();clearPhoto();};showBusy(cropped);el.busySub.textContent='Reconociendo letra y acordes. Puede tardar hasta dos minutos.';
-  const result=await recognizePhoto(cropped,{signal:controller.signal,onStatus:onOcrStatus});if(controller.signal.aborted)return;
-  if(requestedMode==='replace')drafts.fresh=emptyDraft();
+  const results=await recognizePhoto(cropped,{signal:controller.signal,onStatus:onOcrStatus});if(controller.signal.aborted)return;
+  if(!results.length)throw new Error('No se detectaron canciones.');
+  if(results.length>1&&requestedMode==='append'){toast('Se detectaron varias canciones. Recorta una sola para añadir una página a esta letra.',6000);return;}
+  const result=results[0];
+  if(requestedMode==='replace'){drafts.fresh=emptyDraft();captureQueue=results.slice(1);captureTotal=results.length>1?results.length:0;captureIndex=1;}
+
   if(!state.editing)await navigate('editor');const d=currentDraft();const previousLines=d.lyrics.split('\n').length;
   if(requestedMode==='append'&&d.lyrics.trim()){
    d.lyrics=d.lyrics.trimEnd()+'\n\n'+result.lyrics;const shift=d.lyrics.slice(0,d.lyrics.length-result.lyrics.length).split('\n').length-1;d.chords=[...(d.chords||[]),...(result.chords||[]).map(c=>({...c,line:c.line+shift}))];
@@ -714,9 +736,9 @@ function renderSheet() {
   for (const s of state.songs) counts.set(s.categoryId, (counts.get(s.categoryId) ?? 0) + 1);
   const rows = state.cats
     .map(
-      (c) => `<div class="cat-row" data-id="${c.id}">
+      (c) => `<div class="cat-row" data-id="${c.id}"><button type="button" class="cat-drag" aria-label="Arrastrar ${esc(c.name)} para ordenar">⠿</button>
         <span class="cat-name">${esc(c.name)}</span>
-        <small>${counts.get(c.id) ?? 0}</small>
+        <small>${counts.get(c.id) ?? 0}</small><button type="button" class="icon-btn" data-act="cat-up" aria-label="Subir ${esc(c.name)}">↑</button><button type="button" class="icon-btn" data-act="cat-down" aria-label="Bajar ${esc(c.name)}">↓</button>
         <button type="button" class="icon-btn" data-act="rename" aria-label="Renombrar ${esc(c.name)}">${icon('pencil', 20)}</button>
         <button type="button" class="icon-btn" data-act="delete" aria-label="Eliminar ${esc(c.name)}">${icon('trash-2', 20)}</button>
       </div>`,
@@ -725,7 +747,7 @@ function renderSheet() {
   el.sheetBody.innerHTML = `
     <section><h3>Acceso y preferencias</h3><button type="button" class="btn secondary block" id="change-access">Cambiar modo de acceso</button><button type="button" class="btn ghost block" id="revoke-sessions">Cerrar todas las sesiones de Editor</button><label class="setting-toggle"><input type="checkbox" id="allow-ocr" ${readStorage('cancionero.allow-ocr')==='1'?'checked':''}> Permitir OCR tradicional</label><p class="note">OpenAI es el motor principal. El OCR tradicional solo aparece si activas esta opción.</p><button type="button" class="btn secondary block" id="migrate-settings">Migrar canciones de este teléfono</button><p id="migration-progress" role="status"></p></section>
     <section>
-      <h3>Categorías</h3>
+      <h3>Categorías</h3><p class="note">Arrastra el asa ⠿ para ordenar. Este orden se comparte en todos los filtros y selectores. También puedes usar las flechas.</p>
       <div class="cat-list">${rows || '<p class="note" style="padding:16px">Aún no tienes categorías.</p>'}</div>
       <form class="add-row" id="cat-form">
         <input id="cat-new" type="text" maxlength="40" placeholder="Nueva categoría…" autocomplete="off" enterkeyhint="done" aria-label="Nombre de la nueva categoría">
@@ -780,8 +802,12 @@ async function sheetRename(id) {
   }
 }
 
+async function saveCategoryOrder(){
+ const categories=[...el.sheetBody.querySelectorAll('.cat-row')].map(row=>state.catById.get(idValue(row.dataset.id))).filter(Boolean);
+ el.sheetBody.inert=true;try{await store.reorderCategories(categories);await refresh();renderLibrary();renderCatSelect();renderSheet();toast('Orden de categorías guardado para todos');}catch(error){toast(error.message,5000);await refresh();renderSheet();}finally{el.sheetBody.inert=false;}
+}
 async function sheetDelete(id) {
-  const cat = state.catById.get(id);
+  const cat = state.catById.get(id);if(!cat){toast('Actualiza las categorías e inténtalo de nuevo.');return;}
   const used = state.songs.filter((s) => s.categoryId === id).length;
   const ok = await confirmBox({
     title: `¿Eliminar «${cat.name}»?`,
@@ -944,18 +970,24 @@ function bindEvents() {
   });
 
   // Ajustes
+  $('#capture-skip').onclick=async()=>{if(await confirmBox({title:'¿Omitir esta canción?',message:'Esta canción no se guardará. Podrás continuar con la próxima.',okLabel:'Omitir'}))nextCapture();};
   $('#sheet-close').addEventListener('click', closeSheet);
   el.sheet.addEventListener('click', (e) => {
     if (e.target === el.sheet) closeSheet();
   });
+  let draggedCategory=null,movedCategory=false;
+  el.sheetBody.addEventListener('pointerdown',e=>{const handle=e.target.closest('.cat-drag');if(!handle||e.button!==0)return;e.preventDefault();draggedCategory=handle.closest('.cat-row');movedCategory=false;draggedCategory.classList.add('dragging');el.sheetBody.setPointerCapture(e.pointerId);});
+  el.sheetBody.addEventListener('pointermove',e=>{if(!draggedCategory)return;e.preventDefault();const row=document.elementFromPoint(e.clientX,e.clientY)?.closest('.cat-row');if(row&&row!==draggedCategory&&el.sheetBody.contains(row)){const rect=row.getBoundingClientRect();if(e.clientY<rect.top+rect.height/2)row.before(draggedCategory);else row.after(draggedCategory);movedCategory=true;}const b=el.sheetBody.getBoundingClientRect();if(e.clientY<b.top+45)el.sheetBody.scrollTop-=16;else if(e.clientY>b.bottom-45)el.sheetBody.scrollTop+=16;});
+  const endCategoryDrag=()=>{if(!draggedCategory)return;draggedCategory.classList.remove('dragging');draggedCategory=null;if(movedCategory)saveCategoryOrder();};el.sheetBody.addEventListener('pointerup',endCategoryDrag);el.sheetBody.addEventListener('pointercancel',endCategoryDrag);
   el.sheetBody.addEventListener('click', (e) => {
     const row = e.target.closest('.cat-row');
     const act = e.target.closest('[data-act]')?.dataset.act;
     if(e.target.closest('#change-access')){closeSheet();access.show();return;}
     if(e.target.closest('#migrate-settings')){runMigration();return;}
     if(e.target.closest('#revoke-sessions')){revokeSessions();return;}
-    if (row && act === 'rename') sheetRename(idValue(row.dataset.id));
-    else if (row && act === 'delete') sheetDelete(idValue(row.dataset.id));
+    if(row&&['cat-up','cat-down'].includes(act)){const rows=[...el.sheetBody.querySelectorAll('.cat-row')],i=rows.indexOf(row),other=rows[i+(act==='cat-up'?-1:1)];if(other){if(act==='cat-up')other.before(row);else other.after(row);saveCategoryOrder();}return;}
+    if (row && act === 'rename') sheetRename(idValue(row.dataset.id)).catch(error=>toast(error.message,5000));
+    else if (row && act === 'delete') sheetDelete(idValue(row.dataset.id)).catch(error=>toast(error.message,5000));
     else if (e.target.closest('#btn-export')) exportBackup();
     else if (e.target.closest('#btn-import')) {
       el.fileImport.value = '';
@@ -1020,11 +1052,11 @@ function applyAccess(){
   const editor=access.isEditor();
   $('[data-tab="add"]').hidden=!editor;$('#btn-settings').hidden=false;
   document.body.dataset.mode=editor?'editor':'viewer';
-  if(!editor && state.view==='add'){state.editing=false;drafts.edit=null;state.view='library';}
-  mass.setCanEdit(editor);if(!editor){clearPhoto();closeSheet();}refresh().then(()=>{renderLibrary();applyView();}).catch(()=>{});
+  if(!editor && state.view==='add'){state.editing=false;drafts.edit=null;captureQueue=[];captureTotal=0;captureIndex=0;if(drafts.fresh.transient)drafts.fresh=emptyDraft();state.view='library';}
+  gospel.updateAccess();mass.setCanEdit(editor);if(!editor){clearPhoto();closeSheet();}refresh().then(()=>{renderLibrary();applyView();}).catch(()=>{});
 }
 const mass = initMass({ getSongs: () => state.songs.filter(s=>!s.shared), categoryName: catName, openSong: song=>{gospel.resetReader();displaySong(song);}, canEdit:()=>access.isEditor() });
-const gospel = initGospel({openReading:displaySong,closeOtherReaders:()=>mass.resetReader()});
+const gospel = initGospel({canEdit:()=>access.isEditor(),openReading:displaySong,closeOtherReaders:()=>mass.resetReader()});
 const access = initAccess({onChange:()=>{applyAccess();closeReader();},beforeChange:async()=>{
   if(state.editing&&isEditDirty())return confirmBox({title:'¿Cambiar el modo?',message:'Guarda tus cambios antes de cambiar el modo.',okLabel:'Continuar'});
   if(mass.isEditing())return confirmBox({title:'¿Cambiar el modo?',message:'Hay una misa en edición. Guarda sus cambios antes de cambiar el modo.',okLabel:'Continuar'});

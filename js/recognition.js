@@ -24,9 +24,9 @@ async function imageData(blob){
 export async function recognizePhoto(blob,{signal,onStatus}={}){
  if(blob)photo=blob;if(!photo)throw new Error('Selecciona otra foto para continuar.');document.querySelector('#reprocess-photo').hidden=false;
  if(readStorage('cancionero.allow-ocr')==='1'&&document.querySelector('#photo-engine').value==='traditional'){
-  const result=await readLyricsFromImage(photo,{signal,onStatus});return {title:'',number:'',lyrics:result.text,category:'',key:{note:'',mode:'',accidental:''},chords:[],warnings:['OCR tradicional: revisa la letra antes de guardar.']};
+  const result=await readLyricsFromImage(photo,{signal,onStatus});return [{title:'',number:'',lyrics:result.text,category:'',key:{note:'',mode:'',accidental:''},chords:[],warnings:['OCR tradicional: revisa la letra antes de guardar.']}];
  }
  onStatus?.({status:'recognizing text',progress:.05});let image=await imageData(photo);
- try{const response=await call('recognize',{requestId:crypto.randomUUID(),image,instructions:document.querySelector('#ai-instructions').value.trim()},{ai:true,signal});return response.result;}
+ try{const response=await call('recognize',{requestId:crypto.randomUUID(),image,instructions:document.querySelector('#ai-instructions').value.trim()},{ai:true,signal});return response.results||[response.result];}
  finally{image='';}
 }
