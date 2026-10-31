@@ -1177,3 +1177,35 @@ html, body, #app, .topbar, .tabbar { background: #fff; color-scheme: only light;
 #ocr-review {padding:12px;margin-bottom:16px;border-radius:12px;background:#f4f5ff;color:#343867;font-size:14px;white-space:normal;}
 .mass-edit-tools {display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;}.mass-edit-tools .btn {flex:1;}
 .mass-sync {font-size:13px;color:var(--muted);padding:8px 0;min-height:36px;}
+
+/* Unified adding flow and remembered device mode. */
+#app {max-width:980px;}
+.header-tools {display:flex;align-items:center;gap:4px;flex:none;}
+.mode-pill {padding:8px 12px;min-height:40px;border:1px solid var(--line);border-radius:999px;background:#fff;color:var(--primary);font-size:13px;font-weight:700;}
+.mode-screen {position:fixed;inset:0;z-index:100;background:#fff;display:grid;place-items:center;overflow:auto;padding:calc(env(safe-area-inset-top) + 24px) 20px calc(env(safe-area-inset-bottom) + 24px);}
+.mode-card {width:100%;max-width:430px;display:grid;gap:18px;}
+.mode-card .brand-mark {width:60px;height:60px;}.mode-card h1 {font-size:30px;line-height:1.2;letter-spacing:-.03em;}
+.mode-card p {color:var(--muted);line-height:1.6;}.mode-card label {font-weight:700;}
+.mode-card select {width:100%;min-height:56px;background:#fff;border:1.5px solid var(--line);border-radius:12px;font:inherit;font-size:18px;color:var(--text);padding:12px;}
+.section-heading {padding:14px 0 20px;}.section-heading h2 {font-size:28px;line-height:1.2;margin:6px 0 10px;letter-spacing:-.025em;}.section-heading p {color:var(--muted);line-height:1.5;}
+.add-selector {padding:4px;display:flex;gap:4px;margin:0 0 24px;background:#f2f3fa;border:1px solid var(--line);border-radius:14px;}
+.add-selector label {position:relative;flex:1;cursor:pointer;}.add-selector input {position:absolute;opacity:0;inset:0;width:100%;height:100%;margin:0;cursor:pointer;}
+.add-selector span {display:flex;gap:8px;align-items:center;justify-content:center;min-height:48px;padding:8px;border-radius:10px;font-weight:650;color:var(--muted);}
+.add-selector input:checked+span {background:#fff;color:var(--primary);box-shadow:0 2px 8px #20205012;}
+.add-selector input:focus-visible+span {outline:3px solid var(--accent);}
+#view-add .editor-head h2 {font-size:21px;}#view-add .scan-hero {padding-top:0;}
+.sunday-label {text-transform:capitalize;font-weight:650;}
+.readings-status {color:var(--muted);font-size:13px;margin-bottom:14px;min-height:20px;}
+.reading-cards {display:grid;gap:12px;}
+.reading-card {width:100%;display:flex;gap:14px;align-items:center;text-align:left;border:1px solid var(--line);border-radius:16px;padding:18px 14px;background:white;color:var(--text);cursor:pointer;}
+.reading-number {width:32px;height:32px;display:grid;place-items:center;border-radius:50%;background:#eeeefa;color:var(--primary);font-weight:750;flex:none;}
+.reading-card>span:nth-child(2){flex:1;min-width:0;}.reading-card small {display:block;color:var(--primary);font-size:13px;font-weight:750;margin-bottom:6px;}
+.reading-card strong {display:block;font-size:19px;line-height:1.35;}.reading-excerpt {display:block;color:var(--muted);font-size:15px;line-height:1.5;margin-top:8px;}
+.reading-card>span:last-child {color:var(--muted);font-size:26px;}.reading-cards+.note {margin:18px 0;}
+.readings-footer {display:grid;gap:16px;margin:24px 0;}.readings-footer p {font-size:12px;line-height:1.6;color:var(--muted);}.readings-footer a {color:var(--primary);}
+/* Roomy reading: native pinch zoom remains enabled, plus persistent A-/A+ controls. */
+.reader-scroll {padding:20px max(18px,env(safe-area-inset-right)) 32px max(18px,env(safe-area-inset-left));}
+.reader-lyrics {font-size:var(--fs,28px);line-height:1.55;font-weight:500;touch-action:pan-x pan-y pinch-zoom;}
+.reader-scroll h2 {font-size:28px;}.reader-bar {flex:none;}.mass-reader-nav{flex:none;}
+@media(min-width:900px){.reader-scroll{padding-left:max(28px,calc((100vw - 900px)/2));padding-right:max(28px,calc((100vw - 900px)/2));}.reading-cards{grid-template-columns:1fr 1fr;}}
+@media(max-width:370px){.brand h1{font-size:18px;}.mode-pill{padding:8px;font-size:12px;}.reader-actions{gap:2px;}.reader-actions .size-btn{min-width:42px;}.reader-actions .icon-btn{width:38px;}}

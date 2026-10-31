@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Mi Cancionero</title>
   <meta name="description" content="Biblioteca de letras para cantar: busca por título o fragmento, clasifica por momento de la misa y captura letras con la cámara.">
   <meta name="theme-color" content="#ffffff">
@@ -16,10 +16,25 @@
   <link rel="icon" type="image/png" href="icons/icon-192.png">
   <link rel="preload" href="fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="css/styles.css">
-  <script>window.APP_VERSION = '1.1.0';</script>
+  <script>window.APP_VERSION = '1.2.0';</script>
 </head>
 <body>
-  <div id="app">
+  <section id="mode-screen" class="mode-screen" aria-labelledby="mode-title">
+    <form id="mode-form" class="mode-card">
+      <span class="brand-mark" data-icon="music" data-size="28"></span>
+      <span class="eyebrow">BIENVENIDO A CANCIONERO</span>
+      <h1 id="mode-title">¿Cómo quieres entrar?</h1>
+      <p>Elige tu modo. Lo recordaremos en este teléfono para las próximas veces.</p>
+      <label for="mode-select">Modo de uso</label>
+      <select id="mode-select" required>
+        <option value="" disabled>Selecciona una opción</option>
+        <option value="editor">Editor</option><option value="viewer">Visor</option>
+      </select>
+      <p class="note">Editor: todas las funciones. Visor: canciones, misa y evangelio.</p>
+      <button class="btn primary big block" type="submit">Entrar</button>
+    </form>
+  </section>
+  <div id="app" hidden>
     <header class="topbar">
       <div class="brand">
         <span class="brand-mark" data-icon="music" data-size="22"></span>
@@ -28,13 +43,13 @@
           <p id="subtitle">Cargando…</p>
         </div>
       </div>
-      <button id="btn-settings" class="icon-btn" type="button" aria-label="Categorías y respaldo" data-icon="settings-2"></button>
+      <div class="header-tools"><button id="btn-mode" class="mode-pill" type="button">Modo</button>
+      <button id="btn-settings" class="icon-btn" type="button" aria-label="Categorías y respaldo" data-icon="settings-2"></button></div>
     </header>
 
     <main id="main">
       <!-- LETRAS -->
-      <section id="view-library" class="view" aria-label="Letras">
-        <div id="install-hint" class="hint" hidden></div>
+      <section id="view-library" class="view" aria-label="Canciones">
         <div class="search">
           <span class="search-icon" data-icon="search" data-size="20"></span>
           <input id="q" type="text" inputmode="search" enterkeyhint="search" autocomplete="off"
@@ -47,11 +62,17 @@
         <div id="list" class="list"></div>
       </section>
 
+      <section id="view-add" class="view" aria-label="Añadir canción" hidden>
+        <div class="section-heading"><h2>Añadir canción</h2><p>Escribe la letra o captúrala con una foto.</p></div>
+        <fieldset class="add-selector"><legend class="sr-only">Cómo añadir una canción</legend>
+          <label><input type="radio" name="add-method" value="editor" checked><span data-icon="pencil" data-size="20">Escribir</span></label>
+          <label><input type="radio" name="add-method" value="scan"><span data-icon="camera" data-size="20">Tomar foto</span></label>
+        </fieldset>
       <!-- PEGAR / EDITAR -->
-      <section id="view-editor" class="view" aria-label="Pegar letra" hidden>
+      <section id="view-editor" class="view" aria-label="Escribir canción" hidden>
         <form id="editor" class="editor" autocomplete="off" novalidate>
           <div class="editor-head">
-            <h2 id="editor-title">Nueva letra</h2>
+            <h2 id="editor-title">Nueva canción</h2>
             <button type="button" id="editor-cancel" class="btn ghost small" hidden>Cancelar</button>
           </div>
 
@@ -105,14 +126,16 @@
           <input id="file-gallery" type="file" accept="image/*" hidden>
         </div>
       </section>
+      </section>
+      <section id="view-gospel" class="view" aria-label="Evangelio" hidden></section>
       <section id="view-mass" class="view" aria-label="Misa" hidden></section>
     </main>
 
     <nav class="tabbar" aria-label="Secciones">
-      <button type="button" class="tab" data-tab="library" data-icon="list-music"><span>Letras</span></button>
-      <button type="button" class="tab" data-tab="editor" data-icon="clipboard-paste"><span>Pegar</span></button>
-      <button type="button" class="tab" data-tab="scan" data-icon="camera"><span>Foto</span></button>
+      <button type="button" class="tab" data-tab="library" data-icon="list-music"><span>Canciones</span></button>
+      <button type="button" class="tab" data-tab="add" data-icon="plus"><span>Añadir</span></button>
       <button type="button" class="tab" data-tab="mass" data-icon="book-open"><span>Misa</span></button>
+      <button type="button" class="tab" data-tab="gospel" data-icon="book-open"><span>Evangelio</span></button>
     </nav>
   </div>
 
@@ -136,6 +159,10 @@
       <p id="mass-reader-position" aria-live="polite"></p>
       <div><button id="mass-prev" class="btn secondary" type="button">Anterior</button>
       <button id="mass-next" class="btn primary" type="button">Siguiente</button></div>
+    </footer>
+    <footer id="gospel-reader-nav" class="mass-reader-nav" hidden>
+      <p id="gospel-reader-position" aria-live="polite"></p>
+      <div><button id="gospel-prev" class="btn secondary" type="button">Anterior</button><button id="gospel-next" class="btn primary" type="button">Siguiente</button></div>
     </footer>
   </div>
 

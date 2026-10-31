@@ -4,7 +4,7 @@ import { toast, confirmBox } from './ui.js';
 import { fetchMass, publishMass, ConflictError } from './shared-mass.js';
 import { sundayFor, shiftSunday, sundayLabel, parseDate } from './dates.js';
 
-export function initMass({ getSongs, categoryName, openSong }) {
+export function initMass({ getSongs, categoryName, openSong, canEdit=()=>true }) {
   const root=document.querySelector('#view-mass');
   let selected=sundayFor(), autoDate=selected, entries=[], generation=0, saving=false, search='';
   let editing=false, revision=null, online=false, syncMessage='', localPlan=null, syncing=false;
@@ -21,20 +21,20 @@ export function initMass({ getSongs, categoryName, openSong }) {
     ${selected!==sundayFor()?'<button class="link" data-mass="today">Ir al domingo actual o próximo</button>':''}
     <p class="note">${entries.length} ${entries.length===1?'canción preparada':'canciones preparadas'} · ${editing?'Editando · cambios sin publicar':'Compartida con todos'}</p>
     <p id="mass-sync" class="mass-sync" role="status">${esc(syncMessage)}</p>
-    <div class="mass-edit-tools">${editing?'<button class="btn primary" data-mass="save">Guardar cambios para todos</button><button class="btn secondary" data-mass="cancel">Cancelar</button>':`<button class="btn secondary" data-mass="edit" ${online?'':'disabled'}>Editar misa</button><button class="btn ghost" data-mass="refresh">Actualizar</button>`}</div>
+    <div class="mass-edit-tools">${editing?'<button class="btn primary" data-mass="save">Guardar cambios para todos</button><button class="btn secondary" data-mass="cancel">Cancelar</button>':`<button class="btn secondary" data-mass="edit" ${canEdit()?'':'hidden'} ${online?'':'disabled'}>Editar misa</button><button class="btn ghost" data-mass="refresh">Actualizar</button>`}</div>
     ${editing&&localPlan?.entries?.length&&!entries.length?'<button class="link" data-mass="restore">Usar mi misa guardada en este dispositivo</button>':''}
     <button class="btn primary block big" data-mass="start" ${entries.length?'':'disabled'}>Comenzar misa</button>
     <ol class="mass-order">${entries.map((e,i)=>`<li><span class="mass-number">${i+1}</span><button class="mass-song" data-mass="read" data-index="${i}"><strong>${esc(e.title)}</strong><small>${esc(e.category||'Sin categoría')}</small></button>${editing?`<div class="mass-controls">
     <button class="icon-btn" data-mass="up" data-index="${i}" ${i===0?'disabled':''} aria-label="Subir ${esc(e.title)}">↑</button>
     <button class="icon-btn" data-mass="down" data-index="${i}" ${i===entries.length-1?'disabled':''} aria-label="Bajar ${esc(e.title)}">↓</button>
     <button class="icon-btn" data-mass="remove" data-index="${i}" aria-label="Quitar ${esc(e.title)}">×</button></div>`:''}</li>`).join('')}</ol>
-    ${entries.length?'':'<p class="mass-empty">Todavía no hay canciones para este domingo. Pulsa «Editar misa» para preparar el repertorio. Lo que guardes el sábado aparecerá aquí el domingo.</p>'}
-    <div id="mass-add" ${editing?'':'hidden'}><h3>Añadir canciones de mis letras</h3><input id="mass-search" class="mass-search" type="search" placeholder="Buscar en mis letras…" aria-label="Buscar canciones para la misa" value="${esc(search)}"><div id="mass-choices"></div><p class="note">Al guardar la misa se comparten los títulos, las letras y el orden. Las fotos no se suben.</p></div>`;
+    ${entries.length?'':'<p class="mass-empty">Todavía no hay canciones para este domingo. El repertorio aparecerá aquí cuando se publique la misa.</p>'}
+    <div id="mass-add" ${editing?'':'hidden'}><h3>Añadir canciones de mi biblioteca</h3><input id="mass-search" class="mass-search" type="search" placeholder="Buscar en mis letras…" aria-label="Buscar canciones para la misa" value="${esc(search)}"><div id="mass-choices"></div><p class="note">Al guardar la misa se comparten los títulos, las letras y el orden. Las fotos no se suben.</p></div>`;
     renderChoices();
   }
   function renderChoices(){
     const songs=getSongs().filter(s=>norm(s.title+' '+categoryName(s)).includes(norm(search)));
-    root.querySelector('#mass-choices').innerHTML=songs.length?songs.map(s=>`<button class="mass-choice" data-mass="add" data-id="${s.id}"><span><strong>${esc(s.title)}</strong><small>${esc(categoryName(s))}</small></span><span aria-hidden="true">＋</span><span class="sr-only">Añadir a misa</span></button>`).join(''):'<p class="note mass-empty">No hay letras disponibles. Guarda una letra en «Pegar» o «Foto» para añadirla aquí.</p>';
+    root.querySelector('#mass-choices').innerHTML=songs.length?songs.map(s=>`<button class="mass-choice" data-mass="add" data-id="${s.id}"><span><strong>${esc(s.title)}</strong><small>${esc(categoryName(s))}</small></span><span aria-hidden="true">＋</span><span class="sr-only">Añadir a misa</span></button>`).join(''):'<p class="note mass-empty">No hay canciones disponibles. Guarda una canción desde «Añadir» para incluirla aquí.</p>';
   }
   function status(message){syncMessage=message;const node=root.querySelector('#mass-sync');if(node)node.textContent=message;}
   async function show(date=selected){
@@ -59,14 +59,14 @@ export function initMass({ getSongs, categoryName, openSong }) {
     if(editing&&!await confirmBox({title:'¿Salir de la edición?',message:'Los cambios de esta misa todavía no están publicados.',okLabel:'Salir sin guardar'})){const input=root.querySelector('#mass-date');if(input)input.value=selected;return;}
     editing=false;return show(date);
   }
-  function change(mutator){if(!editing||saving)return;mutator();render();}
+  function change(mutator){if(!editing||saving||!canEdit())return;mutator();render();}
   async function save(){
-    if(!editing||saving)return;saving=true;root.inert=true;status('Guardando para todos…');
+    if(!editing||saving||!canEdit())return;saving=true;root.inert=true;status('Guardando para todos…');
     try {
       const record=await publishMass(selected,entries,revision);
       revision=record.revision;entries=record.entries;editing=false;online=true;
       syncMessage='Cambios guardados para todos.';
-      await db.masses.put({...record,updatedAt:Date.now()}).catch(()=>{});render();toast('Misa compartida actualizada');
+      await db.masses.put({...record,updatedAt:Date.now()}).catch(()=>{});render();window.dispatchEvent(new Event('cancionero:mass-updated'));toast('Misa compartida actualizada');
     } catch(err) {
       status(err instanceof ConflictError?err.message:err.name==='AbortError'?'La conexión tardó demasiado. Tus cambios siguen aquí; puedes reintentar.':err.message);
       if(err instanceof ConflictError){
@@ -101,7 +101,7 @@ export function initMass({ getSongs, categoryName, openSong }) {
     next.textContent=next.disabled?'Última canción':'Siguiente';
   }
   function start(index){refreshReader.hidden=true;readerEntries=structuredClone(entries);readerDate=selected;readerIndex=index;displayReader();}
-  function resetReader(){refreshReader.hidden=true;nav.hidden=true;readerEntries=[];document.querySelector('#rd-edit').hidden=false;document.querySelector('#rd-delete').hidden=false;}
+  function resetReader(){refreshReader.hidden=true;nav.hidden=true;readerEntries=[];document.querySelector('#rd-edit').hidden=!canEdit();document.querySelector('#rd-delete').hidden=!canEdit();}
   previous.onclick=()=>{if(readerIndex>0){readerIndex--;displayReader();}};
   next.onclick=()=>{if(readerIndex<readerEntries.length-1){readerIndex++;displayReader();}};
   root.addEventListener('input',e=>{if(e.target.id==='mass-search'){search=e.target.value;renderChoices();}});
@@ -117,13 +117,13 @@ export function initMass({ getSongs, categoryName, openSong }) {
     if(action==='week-next')return switchDate(shiftSunday(selected,1));
     if(action==='today')return switchDate(sundayFor());
     if(action==='refresh')return show();
-    if(action==='edit'&&online){editing=true;render();return;}
+    if(action==='edit'&&online&&canEdit()){editing=true;render();return;}
     if(action==='save')return save();
     if(action==='cancel')return switchDate(selected);
     if(action==='restore'&&editing){entries=structuredClone(localPlan.entries);render();return;}
     if(action==='start')return start(0);
     if(action==='read')return start(i);
-    if(!editing)return;
+    if(!editing||!canEdit())return;
     if(action==='add'){
       const song=getSongs().find(s=>s.id===Number(btn.dataset.id));if(!song)return;
       await change(()=>entries.push({title:song.title,lyrics:song.lyrics,category:categoryName(song),songId:song.id}));
@@ -144,5 +144,5 @@ export function initMass({ getSongs, categoryName, openSong }) {
   setInterval(sync,10000);
   window.addEventListener('online',sync);
   window.addEventListener('beforeunload',e=>{if(editing){e.preventDefault();e.returnValue='';}});
-  return {show:()=>{rollover();return editing?Promise.resolve():show();},resetReader,isEditing:()=>editing};
+  return {show:()=>{rollover();return editing?Promise.resolve():show();},resetReader,isEditing:()=>editing,setCanEdit:value=>{if(!value){editing=false;}if(root.children.length)render();}};
 }

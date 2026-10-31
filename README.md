@@ -4,6 +4,20 @@ App: https://fravier3.github.io/Cancionero/
 
 PWA modular, sin build. Fondo blanco fijo, biblioteca local, OCR en español y misas compartidas.
 
+## Navegación y modos
+
+Primera entrada: selector Editor/Visor guardado en `localStorage` (`cancionero.mode.v1`). El botón de la cabecera permite corregir la elección. Es una preferencia de interfaz, no autenticación: se mantiene la edición colaborativa autorizada en Supabase. Visor oculta añadir/editar/borrar; muestra Canciones, Misa y Evangelio.
+
+**Añadir** reúne Escribir y Tomar foto mediante un selector. **Canciones** combina la biblioteca local con copias de las canciones de la misa publicada del domingo correspondiente; las compartidas son de lectura y no se duplican si ya existe la misma letra local. Se eliminó el aviso de instalación.
+
+## Evangelio del domingo
+
+Fuente primaria: Reader Evangelizo (`https://feed.evangelizo.org/v2/reader.php`), calendario romano ordinario en español. Se consulta `type=xml&lang=SP&date=YYYYMMDD` para el mismo domingo usado por Misa. Se comprueba la fecha devuelta antes de mostrar contenido. Se ofrecen primera lectura, salmo, segunda lectura cuando la celebración la incluye y evangelio. Se acredita y enlaza Evangelizo dentro de la app.
+
+Se guarda únicamente la última fecha cargada en `cancionero.sunday-readings.v1`. Una copia de otro domingo nunca se muestra como actual. Ante errores se ofrece reintento y, si existe, la copia del domingo correcto. La fuente se revalida cada seis horas o al pulsar Actualizar. No se copian las lecturas al código del repositorio ni a la base de datos.
+
+Canciones y lecturas se abren a pantalla completa, con fuente inicial de 28 px, A−/A+ persistente (hasta 64 px), navegación entre lecturas y zoom nativo con los dedos. Se respetan áreas seguras y se amplía el ancho útil en escritorio.
+
 ## Fotos y letras
 
 - Cámara o galería → recorte con esquinas/controles accesibles y giro → OCR → revisión → guardar.

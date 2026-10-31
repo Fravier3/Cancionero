@@ -1,5 +1,5 @@
 // Service worker del Cancionero. Subir la versión aquí, en version.json y en index.html en cada cambio.
-const VERSION = '1.1.0';
+const VERSION = '1.2.0';
 const CACHE = `cancionero-v${VERSION}`;
 
 const PRECACHE = [
@@ -9,6 +9,8 @@ const PRECACHE = [
   'version.json',
   'css/styles.css',
   'js/app.js',
+  'js/access.js',
+  'js/gospel.js',
   'js/crop.js',
   'js/mass.js',
   'js/shared-mass.js',

@@ -7,6 +7,10 @@ import { ocrSupported, readLyricsFromImage, cancelOcr } from './ocr.js';
 import { initPWA } from './pwa.js';
 import { cropImage } from './crop.js';
 import { initMass } from './mass.js';
+import { initAccess } from './access.js';
+import { initGospel } from './gospel.js';
+import { fetchMass } from './shared-mass.js';
+import { sundayFor } from './dates.js';
 
 /* ============================================================
    Estado
@@ -15,16 +19,17 @@ const DRAFT_KEY = 'cancionero.draft.v2';
 // Older drafts mixed OCR results with persistent text; never restore those captures.
 writeStorage('cancionero.draft.v1', null);
 const FONT_KEY = 'cancionero.fontsize';
-const HINT_KEY = 'cancionero.hint.dismissed';
-const FONT_STEPS = [18, 20, 22, 24, 26, 28, 32, 36, 40, 46, 52];
+const FONT_STEPS = [18, 20, 22, 24, 26, 28, 32, 36, 40, 46, 52, 58, 64];
 const NEW_CATEGORY = '__new__';
 
 const state = {
+  localSongs: [], sharedSongs: [],
   songs: [], // letras con campos auxiliares de búsqueda (_t, _l)
   cats: [],
   catById: new Map(),
   q: '',
   cat: 'all', // 'all' | 'none' | id numérico
+  addMode: 'editor',
   view: 'library', // 'library' | 'editor' | 'scan'
   editing: false, // true cuando se edita una letra ya guardada
   readerId: null,
@@ -63,14 +68,13 @@ const persistDraft = debounce(() => {
    ============================================================ */
 const el = {
   subtitle: $('#subtitle'),
-  views: { library: $('#view-library'), editor: $('#view-editor'), scan: $('#view-scan'), mass: $('#view-mass') },
+  views: { library: $('#view-library'), add: $('#view-add'), mass: $('#view-mass'), gospel: $('#view-gospel') },
   tabs: $$('.tab'),
   q: $('#q'),
   qClear: $('#q-clear'),
   chips: $('#chips'),
   info: $('#results-info'),
   list: $('#list'),
-  hint: $('#install-hint'),
   form: $('#editor'),
   editorTitle: $('#editor-title'),
   editorCancel: $('#editor-cancel'),
@@ -106,12 +110,31 @@ async function refresh() {
   const [songs, cats] = await Promise.all([store.listSongs(), store.listCategories()]);
   state.cats = cats;
   state.catById = new Map(cats.map((c) => [c.id, c]));
-  state.songs = songs.map((s) => ({ ...s, _t: norm(s.title), _l: norm(s.lyrics) }));
-  state.songs.sort((a, b) => a._t.localeCompare(b._t, 'es'));
+  state.localSongs = songs;
+  mergeSongs();
   if (typeof state.cat === 'number' && !state.catById.has(state.cat)) state.cat = 'all';
 }
 
-const catName = (song) => state.catById.get(song.categoryId)?.name ?? '';
+function mergeSongs(){
+  const unique=new Set(state.localSongs.map(s=>norm(s.title)+'|'+norm(s.lyrics)));
+  state.songs=[...state.localSongs,...state.sharedSongs.filter(s=>!unique.has(norm(s.title)+'|'+norm(s.lyrics)))].map(s=>({...s,_t:norm(s.title),_l:norm(s.lyrics)}));
+  state.songs.sort((a,b)=>a._t.localeCompare(b._t,'es'));
+}
+let sharedLoading=false;
+async function syncSharedSongs(){
+  if(sharedLoading)return;sharedLoading=true;
+  const date=sundayFor();
+  try{
+    let record;
+    try{record=await fetchMass(date);if(record)await store.db.masses.put({...record,updatedAt:Date.now()}).catch(()=>{});}
+    catch{const saved=await store.db.masses.get(date);record=saved?.revision?saved:null;}
+    if(date!==sundayFor())return;
+    state.sharedSongs=(record?.entries||[]).map((s,i)=>({...s,id:`shared:${date}:${i}`,shared:true}));
+    mergeSongs();renderLibrary();
+  }catch{/* existing local songs remain readable */}
+  finally{sharedLoading=false;}
+}
+const catName = (song) => song.category ?? state.catById.get(song.categoryId)?.name ?? '';
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
 /* ============================================================
@@ -169,7 +192,7 @@ function visibleSongs() {
 
 function renderSubtitle() {
   const n = state.songs.length;
-  el.subtitle.textContent = n ? plural(n, 'letra', 'letras') : 'Tu biblioteca está vacía';
+  el.subtitle.textContent = n ? plural(n, 'canción', 'canciones') : 'Tu biblioteca está vacía';
 }
 
 function chipHtml(value, label, count) {
@@ -213,10 +236,10 @@ function songRowHtml({ s, score }, searching) {
 function emptyHtml() {
   return `<div class="empty">
       <span class="empty-mark">${icon('music', 34)}</span>
-      <h3>Aún no hay letras</h3>
-      <p>Pega una letra o toma una foto a la hoja y se agregará a tu lista.</p>
-      <div class="empty-actions">
-        <button type="button" class="btn primary" data-go="editor">${icon('clipboard-paste', 20)} Pegar una letra</button>
+      <h3>Aún no hay canciones</h3>
+      <p>${access.isEditor()?'Escribe una canción o toma una foto para añadirla.':'Las canciones de la misa compartida aparecerán aquí cuando se publique el repertorio.'}</p>
+      <div class="empty-actions" ${access.isEditor()?'':'hidden'}>
+        <button type="button" class="btn primary" data-go="editor">${icon('clipboard-paste', 20)} Escribir una canción</button>
         <button type="button" class="btn secondary" data-go="scan">${icon('camera', 20)} Tomar foto</button>
       </div>
     </div>`;
@@ -235,7 +258,7 @@ function renderList() {
   if (searching) el.info.textContent = `${plural(rows.length, 'resultado', 'resultados')} para «${state.q.trim()}»`;
   else if (state.cat !== 'all') {
     const label = state.cat === 'none' ? 'Sin categoría' : state.catById.get(state.cat)?.name;
-    el.info.textContent = `${plural(rows.length, 'letra', 'letras')} · ${label}`;
+    el.info.textContent = `${plural(rows.length, 'canción', 'canciones')} · ${label}`;
   } else el.info.textContent = '';
 
   if (rows.length === 0) {
@@ -283,7 +306,10 @@ const isEditDirty = () => {
 
 function applyView() {
   for (const [name, node] of Object.entries(el.views)) node.hidden = name !== state.view;
-  const active = state.view === 'editor' && state.editing ? null : state.view;
+  $('#view-editor').hidden = state.view !== 'add' || state.addMode !== 'editor';
+  $('#view-scan').hidden = state.view !== 'add' || state.addMode !== 'scan';
+  $$('[name="add-method"]').forEach(input => input.checked = input.value === state.addMode);
+  const active = state.view;
   el.tabs.forEach((tab) => {
     if (tab.dataset.tab === active) tab.setAttribute('aria-current', 'page');
     else tab.removeAttribute('aria-current');
@@ -292,6 +318,9 @@ function applyView() {
 }
 
 async function navigate(view) {
+  const method = ['editor','scan'].includes(view) ? view : null;
+  if(method) view = 'add';
+  if(view === 'add' && !access.isEditor()) return false;
   if (state.editing) {
     if (isEditDirty()) {
       const ok = await confirmBox({
@@ -306,12 +335,14 @@ async function navigate(view) {
     drafts.edit = null;
     state.returnToReader = null;
   }
+  if(method) state.addMode = method;
   state.view = view;
   updateDraftDot();
-  if (view === 'editor') renderEditor();
-  if (view === 'library') renderLibrary();
-  if (view === 'mass') await mass.show();
+  if (view === 'add' && state.addMode === 'editor') renderEditor();
+  if (view === 'library') {renderLibrary();syncSharedSongs();}
   applyView();
+  if (view === 'mass') await mass.show();
+  if (view === 'gospel') await gospel.show();
   return true;
 }
 
@@ -335,12 +366,12 @@ function updateFirstLineButton() {
 }
 
 function updateDraftDot() {
-  $('[data-tab="editor"]').classList.toggle('has-draft', hasContent(drafts.fresh));
+  $('[data-tab="add"]').classList.toggle('has-draft', hasContent(drafts.fresh));
 }
 
 function renderEditor() {
   const d = currentDraft();
-  el.editorTitle.textContent = state.editing ? 'Editar letra' : 'Nueva letra';
+  el.editorTitle.textContent = state.editing ? 'Editar canción' : 'Nueva canción';
   el.editorCancel.hidden = !state.editing;
   el.clear.hidden = state.editing;
   el.save.lastChild.textContent = state.editing ? ' Guardar cambios' : ' Guardar letra';
@@ -489,7 +520,7 @@ function openEditorForEdit(song) {
   const base = { title: song.title, lyrics: song.lyrics, categoryId: song.categoryId ?? null };
   drafts.edit = { id: song.id, ...base, orig: { ...base } };
   state.editing = true;
-  state.view = 'editor';
+  state.view = 'add'; state.addMode = 'editor';
   renderEditor();
   applyView();
 }
@@ -571,7 +602,7 @@ async function runOcr(file, requestedMode) {
     }
     if (controller.signal.aborted) return;
     if (mode === 'replace') drafts.fresh = emptyDraft();
-    if (state.editing === false && state.view !== 'editor') await navigate('editor');
+    if (state.editing === false && (state.view !== 'add' || state.addMode !== 'editor')) await navigate('editor');
     const d = currentDraft();
     d.transient = true;
     d.ocrNotice = (confidence < 80 ? 'Hay texto de lectura dudosa. Revisa acentos, palabras y estrofas. ' : 'Revisa el texto y las estrofas antes de guardar. ') + 'La captura es temporal y se descarta al recargar.';
@@ -620,8 +651,8 @@ function releaseAwake() {
 }
 
 function currentFontSize() {
-  const saved = Number(readStorage(FONT_KEY, 26));
-  return FONT_STEPS.includes(saved) ? saved : 26;
+  const saved = Number(readStorage(FONT_KEY, 28));
+  return FONT_STEPS.includes(saved) ? saved : 28;
 }
 
 function applyFontSize(px) {
@@ -639,14 +670,16 @@ function stepFont(direction) {
 }
 
 function openReader(id) {
-  mass.resetReader();
-  const song = state.songs.find((s) => s.id === id);
+  mass.resetReader(); gospel.resetReader();
+  const song = state.songs.find((s) => String(s.id) === String(id));
   if (!song) return;
   displaySong(song);
 }
 
 function displaySong(song) {
   state.readerId = song.id ?? null;
+  const editable = access.isEditor() && Boolean(song.id) && !song.shared;
+  $('#rd-edit').hidden = !editable; $('#rd-delete').hidden = !editable;
   el.rdTitle.textContent = song.title;
   el.rdCat.textContent = song.category ?? catName(song);
   el.rdLyrics.textContent = song.lyrics;
@@ -660,7 +693,7 @@ function displaySong(song) {
 function closeReader({ fromPop = false } = {}) {
   if (el.reader.hidden) return;
   el.reader.hidden = true;
-  mass.resetReader();
+  mass.resetReader(); gospel.resetReader();
   state.readerId = null;
   releaseAwake();
   if (!fromPop && history.state?.reader) history.back();
@@ -668,6 +701,7 @@ function closeReader({ fromPop = false } = {}) {
 }
 
 async function deleteFromReader() {
+  if(!access.isEditor()) return;
   const song = state.songs.find((s) => s.id === state.readerId);
   if (!song) return;
   const ok = await confirmBox({
@@ -685,6 +719,7 @@ async function deleteFromReader() {
 }
 
 function editFromReader() {
+  if(!access.isEditor()) return;
   const song = state.songs.find((s) => s.id === state.readerId);
   if (!song) return;
   closeReader();
@@ -730,6 +765,7 @@ function renderSheet() {
 }
 
 function openSheet() {
+  if(!access.isEditor()) return;
   renderSheet();
   el.sheet.hidden = false;
 }
@@ -817,7 +853,7 @@ async function importBackup(file) {
     if (!el.sheet.hidden) renderSheet();
     toast(
       massesAdded ? `Respaldo importado: ${added} letras y ${massesAdded} misas nuevas.` : added
-        ? `Se importaron ${plural(added, 'letra', 'letras')}${skipped ? ` (${skipped} ya estaban)` : ''}`
+        ? `Se importaron ${plural(added, 'canción', 'canciones')}${skipped ? ` (${skipped} ya estaban)` : ''}`
         : 'No había letras nuevas para importar',
       3600,
     );
@@ -827,43 +863,14 @@ async function importBackup(file) {
 }
 
 /* ============================================================
-   Aviso para instalar la app
-   ============================================================ */
-let installPrompt = null;
-
-const isStandalone = () =>
-  window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-
-const isIos = () =>
-  /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-
-function renderInstallHint() {
-  if (isStandalone() || readStorage(HINT_KEY)) {
-    el.hint.hidden = true;
-    return;
-  }
-  let message = '';
-  let action = '';
-  if (isIos()) {
-    message = 'Instálala en tu iPhone: toca Compartir y luego «Añadir a pantalla de inicio».';
-  } else if (installPrompt) {
-    message = 'Instala el Cancionero para abrirlo como una app, incluso sin internet.';
-    action = '<button type="button" class="btn primary small" data-hint="install">Instalar</button>';
-  } else {
-    el.hint.hidden = true;
-    return;
-  }
-  el.hint.innerHTML = `<p>${esc(message)}</p>${action}<button type="button" class="icon-btn small" data-hint="close" aria-label="Cerrar aviso">${icon('x', 18)}</button>`;
-  el.hint.hidden = false;
-}
-
-/* ============================================================
    Eventos
    ============================================================ */
 function bindEvents() {
   // Pestañas
   el.tabs.forEach((tab) => tab.addEventListener('click', () => navigate(tab.dataset.tab)));
   $('#btn-settings').addEventListener('click', openSheet);
+  $$('[name="add-method"]').forEach(input => input.addEventListener('change', () => navigate(input.value)));
+  window.addEventListener('beforeinstallprompt', event => event.preventDefault());
 
   // Biblioteca
   el.q.addEventListener('input', () => {
@@ -894,30 +901,8 @@ function bindEvents() {
       return;
     }
     const row = e.target.closest('.song');
-    if (row) openReader(Number(row.dataset.id));
+    if (row) openReader(row.dataset.id);
   });
-  el.hint.addEventListener('click', async (e) => {
-    const action = e.target.closest('[data-hint]')?.dataset.hint;
-    if (action === 'close') {
-      writeStorage(HINT_KEY, '1');
-      el.hint.hidden = true;
-    } else if (action === 'install' && installPrompt) {
-      installPrompt.prompt();
-      await installPrompt.userChoice.catch(() => {});
-      installPrompt = null;
-      renderInstallHint();
-    }
-  });
-  window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault();
-    installPrompt = e;
-    renderInstallHint();
-  });
-  window.addEventListener('appinstalled', () => {
-    installPrompt = null;
-    renderInstallHint();
-  });
-
   // Editor
   el.title.addEventListener('input', () => {
     currentDraft().title = el.title.value;
@@ -1030,9 +1015,10 @@ async function init() {
   renderCatSelect();
   updateDraftDot();
   applyView();
-  renderInstallHint();
+  applyAccess();
+  syncSharedSongs();
   initPWA({
-    canReload: () => !mass.isEditing() && !ocrRunning && !isEditDirty() && !hasContent(drafts.fresh),
+    canReload: () => !access.isChoosing() && !mass.isEditing() && !ocrRunning && !isEditDirty() && !hasContent(drafts.fresh),
     onBeforeReload: () => {
       persistDraft.flush();
       toast('Actualizando la app…');
@@ -1040,5 +1026,21 @@ async function init() {
   });
 }
 
-const mass = initMass({ getSongs: () => state.songs, categoryName: catName, openSong: displaySong });
+function applyAccess(){
+  const editor=access.isEditor();
+  $('[data-tab="add"]').hidden=!editor;$('#btn-settings').hidden=!editor;
+  document.body.dataset.mode=editor?'editor':'viewer';
+  if(!editor && state.view==='add'){state.editing=false;drafts.edit=null;state.view='library';}
+  mass.setCanEdit(editor);renderLibrary();applyView();
+}
+const mass = initMass({ getSongs: () => state.songs.filter(s=>!s.shared), categoryName: catName, openSong: song=>{gospel.resetReader();displaySong(song);}, canEdit:()=>access.isEditor() });
+const gospel = initGospel({openReading:displaySong,closeOtherReaders:()=>mass.resetReader()});
+const access = initAccess({onChange:()=>{applyAccess();closeReader();},beforeChange:async()=>{
+  if(state.editing&&isEditDirty())return confirmBox({title:'¿Cambiar el modo?',message:'Guarda tus cambios antes de cambiar el modo.',okLabel:'Continuar'});
+  if(mass.isEditing())return confirmBox({title:'¿Cambiar el modo?',message:'Hay una misa en edición. Guarda sus cambios antes de cambiar el modo.',okLabel:'Continuar'});
+  return true;
+}});
+window.addEventListener('cancionero:mass-updated',syncSharedSongs);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&state.view==='library')syncSharedSongs();});
+setInterval(()=>{if(state.view==='library'&&document.visibilityState==='visible')syncSharedSongs();},15000);
 init();

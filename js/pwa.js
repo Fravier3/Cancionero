@@ -5,7 +5,7 @@ const CHECK_EVERY_MS = 45 * 60 * 1000;
 export function initPWA({ onBeforeReload, canReload } = {}) {
   if (!('serviceWorker' in navigator)) return;
 
-  const hadController = Boolean(navigator.serviceWorker.controller);
+  let hadController = Boolean(navigator.serviceWorker.controller);
   let reloading = false;
 
   let pendingReload = false;
@@ -16,7 +16,8 @@ export function initPWA({ onBeforeReload, canReload } = {}) {
   setInterval(tryReload, 15000);
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     // En la primera instalación el SW toma el control sin que haya nada que recargar.
-    if (!hadController || reloading) return;
+    if (!hadController) { hadController=true; return; }
+    if (reloading) return;
     pendingReload = true;
     tryReload();
   });
