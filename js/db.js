@@ -42,10 +42,11 @@ export async function migrateLocal(onProgress=()=>{}){
   }onProgress(verified,originals.length);
  }await syncAfterWrite();return {verified,total:originals.length,pending:(await pendingLocal()).length};
 }
+export class DuplicateSongError extends Error{constructor(title){super(`Esta letra ya existe como «${title}».`);this.code='DUPLICATE_SONG';this.songTitle=title;}}
 export async function saveSong(s){
  if(s.legacy||typeof s.id==='number')throw new Error('Migra primero las canciones de este teléfono desde Configuración. El original seguirá guardado.');
- const comparison=norm(s.lyrics);const existing=(await publicRows('cancionero_songs')).find(row=>row.id!==s.id&&norm(row.lyrics)===comparison);if(existing)throw new Error(`Esta letra ya existe como «${existing.title}». Abre esa canción para editarla.`);
- const result=await call('song_save',{...normalized(s,s.categorySuggested||await categoryName(s.categoryId)),id:s.id||'',revision:s.revision||null});const saved=result.results[0].song;await db.cloudSongs.put(adapt(saved));await syncAfterWrite();return saved.id;
+ const comparison=norm(s.lyrics);const existing=(await publicRows('cancionero_songs')).find(row=>row.id!==s.id&&norm(row.lyrics)===comparison);if(existing)throw new DuplicateSongError(existing.title);
+ let result;try{result=await call('song_save',{...normalized(s,s.categorySuggested||await categoryName(s.categoryId)),id:s.id||'',revision:s.revision||null});}catch(error){if(error.status===409&&/^Ya existe esa canción/.test(error.message))throw new DuplicateSongError(s.title);throw error;}const saved=result.results[0].song;await db.cloudSongs.put(adapt(saved));await syncAfterWrite();return saved.id;
 }
 export async function deleteSong(id){const s=await db.cloudSongs.get(id);if(!s)throw new Error('Migra primero la canción local antes de eliminarla de la biblioteca central.');await call('song_delete',{id,revision:s.revision});await db.cloudSongs.delete(id);await syncAfterWrite();}
 export async function addCategory(name){const result=await call('category_save',{name});await db.cloudCategories.put(result.category);return result.category;}

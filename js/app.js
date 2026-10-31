@@ -459,6 +459,14 @@ async function pasteFromClipboard() {
   }
 }
 
+async function duplicateSongPopup(title,sameLyrics=true){
+ const buttons=[{label:'Volver a revisar',value:'review',kind:'ghost'}];
+ if(captureTotal&&!state.editing)buttons.push({label:'Omitir canción y seguir',value:'skip',kind:'primary'});
+ if(!sameLyrics)buttons.push({label:'Guardar igual',value:'save',kind:'secondary'});
+ const result=await modal({title:sameLyrics?'Esta canción ya está en la lista':'Ya existe una canción con ese título',message:`«${title}» ya está en tu biblioteca.`+(sameLyrics?' No se guardará otra copia de la misma letra.':' Puedes revisar la letra antes de continuar.'),buttons});
+ if(result.value==='skip')await nextCapture();return result.value;
+}
+
 async function saveCurrent() {
   const d = currentDraft();
   if(!access.isEditor()){toast('Entra como Editor para guardar.');return;}
@@ -477,12 +485,7 @@ async function saveCurrent() {
   }
   const duplicate = state.songs.find((s) => s._t === norm(title) && s.id !== d.id);
   if (duplicate) {
-    const ok = await confirmBox({
-      title: 'Ya existe una letra con ese título',
-      message: `«${duplicate.title}» ya está en tu lista. ¿Guardar esta de todos modos?`,
-      okLabel: 'Guardar igual',
-    });
-    if (!ok) return;
+    if(await duplicateSongPopup(duplicate.title,norm(duplicate.lyrics)===norm(lyrics))!=='save')return;
   }
   el.save.disabled = true;
   try {
@@ -509,7 +512,7 @@ async function saveCurrent() {
       toast('Letra guardada en tu lista');
     }
   } catch (error) {
-    toast(error.message||'No se pudo guardar. Tus cambios siguen aquí.',5000);
+    if(error.code==='DUPLICATE_SONG')await duplicateSongPopup(error.songTitle);else toast(error.message||'No se pudo guardar. Tus cambios siguen aquí.',5000);
   } finally {
     el.save.disabled = false;
   }
