@@ -27,5 +27,6 @@ export function validateSong(s:any,clean=false){
  for(const c of s.chords)if(!Number.isInteger(c.line)||!Number.isInteger(c.offset)||c.line<0||c.line>=lines.length||c.offset<0||c.offset>Array.from(lines[c.line]).length||typeof c.chord!=='string'||!c.chord.trim()||c.chord.length>24)throw new ApiError('Hay posiciones de acordes que necesitan revisión.');
  if(!s.key||!['','Do','Re','Mi','Fa','Sol','La','Si'].includes(s.key.note)||!['','+','-'].includes(s.key.mode)||!['','#','b'].includes(s.key.accidental))throw new ApiError('Tonalidad inválida.');
  if((s.key.note&&!s.key.mode)||(!s.key.note&&s.key.mode))throw new ApiError('Completa la nota y si es mayor o menor.');
+ if(s.categories!==undefined&&(!Array.isArray(s.categories)||s.categories.length>30||s.categories.some((c:any)=>typeof c!=='string'||!c.trim()||c.length>80)))throw new ApiError('Revisa las categorías.');
  if(clean){s.key={note:s.key.note,mode:s.key.mode,accidental:s.key.accidental};s.chords=s.chords.map((c:any)=>({line:c.line,offset:c.offset,chord:c.chord}));}
 }

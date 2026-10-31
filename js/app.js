@@ -1,4 +1,5 @@
 // Mi Cancionero — lógica principal de la interfaz.
+import {categoryIds,categoryLabels} from './categories.js';
 import { $, $$, esc, norm, debounce, readStorage, writeStorage } from './util.js';
 import { icon, hydrateIcons } from './icons.js';
 import * as store from './db.js';
@@ -41,7 +42,7 @@ const state = {
   returnToReader: null,
 };
 
-const emptyDraft = () => ({ title: '', lyrics: '', categoryId: null,number:'',key:blankKey(),chords:[] });
+const emptyDraft = () => ({ title: '', lyrics: '', categoryId: null,categoryIds:[],number:'',key:blankKey(),chords:[] });
 const idValue=value=>/^\d+$/.test(String(value))?Number(value):value;
 
 function loadDraft() {
@@ -51,7 +52,7 @@ function loadDraft() {
       return {
         title: String(parsed.title ?? ''),
         lyrics: String(parsed.lyrics ?? ''),
-        categoryId: parsed.categoryId ?? null,number:String(parsed.number||''),key:parsed.key||blankKey(),chords:Array.isArray(parsed.chords)?parsed.chords:[],
+        categoryId: parsed.categoryId ?? null,categoryIds:categoryIds(parsed),number:String(parsed.number||''),key:parsed.key||blankKey(),chords:Array.isArray(parsed.chords)?parsed.chords:[],
       };
     }
   } catch {
@@ -143,7 +144,8 @@ async function syncSharedSongs(){
   }catch{/* existing local songs remain readable */}
   finally{sharedLoading=false;}
 }
-const catName = (song) => song.category ?? state.catById.get(song.categoryId)?.name ?? '';
+const songCategories=s=>categoryIds(s).length?categoryIds(s):state.cats.filter(c=>(s.category||'').split(' · ').some(name=>norm(name)===norm(c.name))).map(c=>c.id);
+const catName = song => categoryLabels({...song,categoryIds:songCategories(song)},state.cats).join(' · ')||song.category||'';
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
 /* ============================================================
@@ -193,8 +195,8 @@ function snippetFor(song, rawQuery) {
 function visibleSongs() {
   const filtered = state.songs.filter((s) => {
     if (state.cat === 'all') return true;
-    if (state.cat === 'none') return !state.catById.has(s.categoryId);
-    return s.categoryId === state.cat;
+    if (state.cat === 'none') return !songCategories(s).some(id=>state.catById.has(id));
+    return songCategories(s).includes(state.cat);
   });
   return searchSongs(filtered, state.q);
 }
@@ -213,8 +215,7 @@ function renderChips() {
   const counts = new Map();
   let none = 0;
   for (const s of state.songs) {
-    if (state.catById.has(s.categoryId)) counts.set(s.categoryId, (counts.get(s.categoryId) ?? 0) + 1);
-    else none += 1;
+    const ids=songCategories(s).filter(id=>state.catById.has(id));for(const id of ids)counts.set(id,(counts.get(id)||0)+1);if(!ids.length)none+=1;
   }
   const parts = [chipHtml('all', 'Todas', state.songs.length)];
   for (const c of state.cats) {
@@ -308,7 +309,7 @@ function renderLibrary() {
 /* ============================================================
    Navegación entre secciones
    ============================================================ */
-const isEditDirty = () => {const d=drafts.edit;return Boolean(d)&&JSON.stringify({title:d.title,lyrics:d.lyrics,categoryId:d.categoryId,number:d.number,key:d.key,chords:d.chords})!==JSON.stringify(d.orig);};
+const isEditDirty = () => {const d=drafts.edit;return Boolean(d)&&JSON.stringify({title:d.title,lyrics:d.lyrics,categoryId:d.categoryId,categoryIds:categoryIds(d),number:d.number,key:d.key,chords:d.chords})!==JSON.stringify(d.orig);};
 
 function applyView() {
   for (const [name, node] of Object.entries(el.views)) node.hidden = name !== state.view;
@@ -361,12 +362,12 @@ async function navigate(view) {
 function renderCatSelect() {
   const d = currentDraft() ?? drafts.fresh;
   const options = [
-    '<option value="">Sin categoría</option>',
+    '<option value="">Añadir otra categoría…</option>',
     ...state.cats.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`),
     `<option value="${NEW_CATEGORY}">＋ Añadir categoría nueva…</option>`,
   ];
   el.cat.innerHTML = options.join('');
-  el.cat.value = d.categoryId && state.catById.has(d.categoryId) ? String(d.categoryId) : '';
+  el.cat.value='';const ids=categoryIds(d);$('#category-checks').innerHTML=state.cats.map(c=>`<label><input type="checkbox" value="${c.id}" ${ids.includes(c.id)?'checked':''}><span>${esc(c.name)}</span></label>`).join('');
 }
 
 function updateFirstLineButton() {
@@ -407,7 +408,7 @@ function onDraftChanged() {
 async function onCategoryChange() {
   const d = currentDraft();
   if (el.cat.value !== NEW_CATEGORY) {
-    d.categoryId = el.cat.value ? idValue(el.cat.value) : null;d.categorySuggested='';
+    if(!el.cat.value||el.cat.value==='__suggested__')return;d.categoryIds=[...new Set([...categoryIds(d),idValue(el.cat.value)])];d.categoryId=d.categoryIds[0]??null;d.categorySuggested='';renderCatSelect();
     onDraftChanged();
     return;
   }
@@ -424,7 +425,7 @@ async function onCategoryChange() {
   try {
     const created = await store.addCategory(name);
     await refresh();
-    d.categoryId = created.id;
+    d.categoryIds=[...new Set([...categoryIds(d),created.id])];d.categoryId=d.categoryIds[0];
     renderCatSelect();
     renderChips();
     onDraftChanged();
@@ -542,7 +543,7 @@ async function cancelEditing() {
 
 function openEditorForEdit(song) {
   if(song.legacy){toast('Migra primero las canciones de este teléfono desde Configuración.',4500);return;}
-  const base={title:song.title,lyrics:song.lyrics,categoryId:song.categoryId??null,number:song.number||'',key:structuredClone(song.key||blankKey()),chords:structuredClone(song.chords||[])};
+  const base={title:song.title,lyrics:song.lyrics,categoryId:song.categoryId??null,categoryIds:categoryIds(song),number:song.number||'',key:structuredClone(song.key||blankKey()),chords:structuredClone(song.chords||[])};
   drafts.edit={id:song.id,revision:song.revision,...base,orig:structuredClone(base)};
   state.editing = true;
   state.view = 'add'; state.addMode = 'editor';
@@ -596,7 +597,7 @@ function onOcrStatus({ status, progress = 0 }) {
 
 function fillCapture(result){
  const d=currentDraft();d.lyrics=result.lyrics;d.chords=result.chords||[];d.title=result.title||'';d.number=result.number||'';d.key=result.key||blankKey();
- const cat=state.cats.find(c=>norm(c.name)===norm(result.category));d.categoryId=cat?.id||null;d.categorySuggested=cat?'':result.category||'';
+ const cat=state.cats.find(c=>norm(c.name)===norm(result.category));d.categoryId=cat?.id||null;d.categoryIds=cat?[cat.id]:[];d.categorySuggested=cat?'':result.category||'';
  d.transient=true;d.ocrNotice=(result.warnings||[]).join(' · ')||'Revisa la letra, el título y los acordes antes de guardar.';
  persistDraft.flush();renderEditor();if(d.categorySuggested){el.cat.add(new Option(d.categorySuggested+' (sugerida)','__suggested__'));el.cat.value='__suggested__';}onDraftChanged();
 }
@@ -622,7 +623,7 @@ async function runOcr(file,requestedMode){
   }else{d.lyrics=result.lyrics;d.chords=result.chords||[];}
   if(!d.title)d.title=result.title||'';if(!d.number)d.number=result.number||'';
   if(result.key?.note)d.key=result.key;
-  const cat=state.cats.find(c=>norm(c.name)===norm(result.category));if(cat)d.categoryId=cat.id;else if(result.category)d.categorySuggested=result.category;
+  const cat=state.cats.find(c=>norm(c.name)===norm(result.category));if(cat){d.categoryIds=[...new Set([...categoryIds(d),cat.id])];d.categoryId=d.categoryIds[0];}else if(result.category)d.categorySuggested=result.category;
   d.transient=true;d.ocrNotice=(result.warnings||[]).join(' · ')||'Revisa la letra, el título y todos los acordes antes de guardar.';
   persistDraft.flush();renderEditor();if(d.categorySuggested){const option=new Option(d.categorySuggested+' (sugerida)','__suggested__');el.cat.add(option);el.cat.value='__suggested__';}
   onDraftChanged();toast('Transcripción lista para revisión. Todavía no se ha guardado.',4500);
@@ -680,7 +681,7 @@ function displaySong(song) {
   const editable = access.isEditor() && Boolean(song.id) && !song.shared;
   $('#rd-edit').hidden = !editable; $('#rd-delete').hidden = !editable;
   el.rdTitle.textContent = (song.number?song.number+' · ':'')+song.title;
-  el.rdCat.textContent = song.category ?? catName(song);
+  el.rdCat.textContent = catName(song);
   state.readerSong=song;
   renderReaderMusic();
   $('#rd-key').textContent=keyLabel(song.key);
@@ -736,7 +737,7 @@ function editFromReader() {
 function renderSheet() {
   if(!access.isEditor()){el.sheetBody.innerHTML='<section><h3>Acceso</h3><p>Estás en modo Visor.</p><button type="button" class="btn primary block" id="change-access">Cambiar modo de acceso</button></section><p class="note">Versión '+esc(window.APP_VERSION)+'</p>';return;}
   const counts = new Map();
-  for (const s of state.songs) counts.set(s.categoryId, (counts.get(s.categoryId) ?? 0) + 1);
+  for (const s of state.songs) for(const id of songCategories(s))counts.set(id,(counts.get(id)||0)+1);
   const rows = state.cats
     .map(
       (c) => `<div class="cat-row" data-id="${c.id}"><button type="button" class="cat-drag" aria-label="Arrastrar ${esc(c.name)} para ordenar">⠿</button>
@@ -811,18 +812,18 @@ async function saveCategoryOrder(){
 }
 async function sheetDelete(id) {
   const cat = state.catById.get(id);if(!cat){toast('Actualiza las categorías e inténtalo de nuevo.');return;}
-  const used = state.songs.filter((s) => s.categoryId === id).length;
+  const used = state.songs.filter((s) => songCategories(s).includes(id)).length;
   const ok = await confirmBox({
     title: `¿Eliminar «${cat.name}»?`,
     message: used
-      ? `${plural(used, 'letra queda', 'letras quedan')} sin categoría. Las letras no se borran.`
+      ? `Se quitará esta categoría de ${used} canciones. Las demás categorías y las letras se conservan.`
       : 'No tiene letras asignadas.',
     okLabel: 'Eliminar',
     danger: true,
   });
   if (!ok) return;
   await store.deleteCategory(id);
-  for (const d of [drafts.fresh, drafts.edit]) if (d?.categoryId === id) d.categoryId = null;
+  for (const d of [drafts.fresh, drafts.edit]) if(d){d.categoryIds=categoryIds(d).filter(c=>c!==id);d.categoryId=d.categoryIds[0]??null;}
   await refresh();
   renderSheet();
   renderLibrary();
@@ -931,6 +932,7 @@ function bindEvents() {
     onDraftChanged();
   });
   el.cat.addEventListener('change', onCategoryChange);
+  $('#category-checks').addEventListener('change',e=>{if(!e.target.matches('input[type=checkbox]'))return;const d=currentDraft(),id=idValue(e.target.value);d.categoryIds=e.target.checked?[...new Set([...categoryIds(d),id])]:categoryIds(d).filter(c=>c!==id);d.categoryId=d.categoryIds[0]??null;onDraftChanged();});
   $('#btn-paste').addEventListener('click', pasteFromClipboard);
   $('#btn-addphoto').addEventListener('click', () => pickImage(el.fileGallery, 'append'));
   el.clear.addEventListener('click', clearDraft);
