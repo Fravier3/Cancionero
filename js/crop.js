@@ -62,7 +62,7 @@ export async function cropImage(file,{instructions='',onInstructions=()=>{}}={})
     function done(value) {
       if(finished)return;finished=true; document.removeEventListener('keydown',key,true);
       window.removeEventListener('pagehide',cancel);layer.remove();canvas.width=canvas.height=1;
-      image.src='';URL.revokeObjectURL(url);previousFocus?.focus();resolve(value);
+      image.src='';URL.revokeObjectURL(url);if(value)previousFocus?.blur();else previousFocus?.focus();resolve(value);
     }
     const cancel=()=>done(null);
     function key(e) {

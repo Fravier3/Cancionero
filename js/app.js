@@ -142,7 +142,7 @@ async function syncSharedSongs(){
     try{record=await fetchMass(date);if(record)await store.db.masses.put({...record,updatedAt:Date.now()}).catch(()=>{});}
     catch{const saved=await store.db.masses.get(date);record=saved?.revision?saved:null;}
     if(date!==sundayFor())return;
-    state.sharedSongs=(record?.entries||[]).map((s,i)=>({...s,id:`shared:${date}:${i}`,shared:true}));
+    state.sharedSongs=(record?.entries||[]).filter(s=>s.kind!=='description').map((s,i)=>({...s,id:`shared:${date}:${i}`,shared:true}));
     mergeSongs();renderLibrary();
   }catch{/* existing local songs remain readable */}
   finally{sharedLoading=false;}

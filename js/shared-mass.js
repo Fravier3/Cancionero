@@ -17,7 +17,7 @@ export async function fetchMass(date){
   return rows[0]||null;
 }
 export async function publishMass(date,entries,revision){
- const clean=entries.map(e=>({title:e.title,lyrics:e.lyrics,category:e.category||'',key:e.key||{note:'',mode:'',accidental:''},chords:e.chords||[],number:e.number||''}));
+ const clean=entries.map(e=>({moment:e.moment||'',kind:e.kind||'song',description:e.description||'',title:e.title,lyrics:e.lyrics,category:e.category||'',key:e.key||{note:'',mode:'',accidental:''},chords:e.chords||[],number:e.number||''}));
  try {const {call}=await import('./api.js');const result=await call('mass_save',{date,entries:clean,revision});return result.mass;}
  catch(error){if(error.status===409)throw new ConflictError(error.message);throw error;}
 }

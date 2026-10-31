@@ -2,8 +2,8 @@ import {call} from './api.js';
 import {readLyricsFromImage} from './ocr.js';
 import {readStorage,writeStorage} from './util.js';
 const FAVORITES='cancionero.ai-favorites';
-let photo=null;
-export const clearPhoto=()=>{photo=null;const button=document.querySelector('#reprocess-photo');if(button)button.hidden=true;};
+let photo=null,lastResult=null;
+export const clearPhoto=()=>{photo=null;lastResult=null;const button=document.querySelector('#reprocess-photo');if(button)button.hidden=true;};
 export const getPhoto=()=>photo;
 export const hasPhoto=()=>Boolean(photo);
 function readFavorites(){try{return JSON.parse(readStorage(FAVORITES,'[]')).filter(x=>typeof x==='string').slice(0,12);}catch{return [];}}
@@ -27,6 +27,8 @@ export async function recognizePhoto(blob,{signal,onStatus}={}){
   const result=await readLyricsFromImage(photo,{signal,onStatus});return [{title:'',number:'',lyrics:result.text,category:'',key:{note:'',mode:'',accidental:''},chords:[],warnings:['OCR tradicional: revisa la letra antes de guardar.']}];
  }
  onStatus?.({status:'recognizing text',progress:.05});let image=await imageData(photo);
- try{const response=await call('recognize',{requestId:crypto.randomUUID(),image,instructions:document.querySelector('#ai-instructions').value.trim()},{ai:true,signal});return response.results||[response.result];}
+ const instructions=document.querySelector('#ai-instructions').value.trim();const cacheKey=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(image+'|'+instructions))),b=>b.toString(16).padStart(2,'0')).join('');
+ if(lastResult?.key===cacheKey){image='';return structuredClone(lastResult.songs);}
+ try{const response=await call('recognize',{requestId:crypto.randomUUID(),image,instructions},{ai:true,signal});const songs=response.results||[response.result];lastResult={key:cacheKey,songs:structuredClone(songs)};return songs;}
  finally{image='';}
 }

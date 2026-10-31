@@ -37,6 +37,9 @@ Deno.serve(async req=>{
     if(positions.length===1)chord.offset=positions[0];else{chord.needsReview=true;result.warnings.push('Revisa la ubicación de '+chord.chord+' sobre '+anchor+'.');}
    }
   }
+  if(result.key?.note&&!result.key.mode){result.key={note:'',mode:'',accidental:''};result.warnings.push('Revisa la tonalidad.');}
+  const lyricLines=result.lyrics.split('\n');for(const c of result.chords){const line=Math.max(0,Math.min(lyricLines.length-1,c.line)),offset=Math.max(0,Math.min(Array.from(lyricLines[line]).length,c.offset));if(line!==c.line||offset!==c.offset){c.line=line;c.offset=offset;c.needsReview=true;result.warnings.push('Confirma la posición de '+c.chord+'.');}}
+  result.title=result.title.slice(0,200);
   validateSong({...result,title:result.title||'Sin título'});
   }
   await rpc('cancionero_ai_gate',{p_token:token,p_id:id,p_hash:'',p_action:'complete',p_input:output.usage?.input_tokens||0,p_output:output.usage?.output_tokens||0});

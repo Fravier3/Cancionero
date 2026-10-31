@@ -1247,3 +1247,5 @@ html, body, #app, .topbar, .tabbar { background: #fff; color-scheme: only light;
 .song-snippet{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;line-height:1.45;}
 
 html,body,button,a,input,select,textarea,summary,.reader-lyrics{touch-action:pan-x pan-y;}
+
+.mass-slots{display:grid;gap:14px;margin:20px 0}.mass-slot{padding:16px;border:1px solid var(--line);border-radius:14px}.mass-slot h3{margin-bottom:10px}.mass-slot-mode{display:flex;gap:20px;margin-bottom:12px}.mass-slot-mode label{display:flex;gap:8px;align-items:center;min-height:44px}.mass-slot input:not([type=radio]),.mass-slot select{width:100%;min-height:48px;font:inherit;font-size:16px;background:white;border:1px solid var(--line);padding:12px;border-radius:10px}.mass-slot input[type=radio]{width:20px;height:20px;accent-color:var(--primary)}
