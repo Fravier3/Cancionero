@@ -1243,3 +1243,5 @@ html, body, #app, .topbar, .tabbar { background: #fff; color-scheme: only light;
 .song-title{text-transform:uppercase;}
 
 #crop-instructions{min-height:110px;resize:vertical;}
+
+.song-snippet{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;line-height:1.45;}

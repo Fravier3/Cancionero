@@ -1,5 +1,5 @@
 // Mi Cancionero — lógica principal de la interfaz.
-import {searchSongs,searchText} from './search.js';
+import {searchSongs,matchingSnippet} from './search.js';
 import {categoryIds,categoryLabels} from './categories.js';
 import { $, $$, esc, norm, debounce, readStorage, writeStorage } from './util.js';
 import { icon, hydrateIcons } from './icons.js';
@@ -152,26 +152,7 @@ const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 /* ============================================================
    Biblioteca: búsqueda, filtros y lista
    ============================================================ */
-/** Devuelve la línea de la letra que contiene lo buscado, para mostrarla bajo el título. */
-function snippetFor(song, rawQuery) {
-  const phrase = searchText(rawQuery);
-  const tokens = phrase.split(' ');
-  const lines = song.lyrics.split('\n');
-  const normalized = lines.map(searchText);
-  let index = normalized.findIndex((l) => l.includes(phrase));
-  if (index < 0) {
-    for (let i = 0; i < normalized.length - 1; i += 1) {
-      if (`${normalized[i]} ${normalized[i + 1]}`.includes(phrase)) {
-        index = i;
-        break;
-      }
-    }
-  }
-  if (index < 0) index = normalized.findIndex((l) => tokens.some((t) => l.includes(t)));
-  if (index < 0) return '';
-  const line = lines[index].trim();
-  return line.length > 90 ? `${line.slice(0, 87)}…` : line;
-}
+const snippetFor=(song,query)=>matchingSnippet(song.lyrics,query);
 
 function visibleSongs() {
   const filtered = state.songs.filter((s) => {
@@ -210,8 +191,7 @@ function renderChips() {
 }
 
 function songRowHtml({ s, score }, searching) {
-  const showSnippet = searching && score >= 3;
-  const snippet = showSnippet ? snippetFor(s, state.q) : '';
+  const snippet = searching ? snippetFor(s, state.q) : '';
   const flash = state.flashId === s.id ? ' flash' : '';
   const cat = catName(s);
   return `<button type="button" class="song${flash}" data-id="${s.id}">
