@@ -1,6 +1,6 @@
 // Photo and crop live only in memory. No storage or network upload.
 import { esc } from './util.js';
-export async function cropImage(file) {
+export async function cropImage(file,{instructions='',onInstructions=()=>{}}={}) {
   const url = URL.createObjectURL(file);
   const image = new Image();
   try { image.src = url; await image.decode(); }
@@ -15,10 +15,12 @@ export async function cropImage(file) {
     <label class="crop-zoom">Ampliar imagen <input aria-label="Ampliar imagen" id="crop-zoom" type="range" min="1" max="4" step="0.25" value="1"></label><div class="crop-viewport"><div class="crop-stage"><canvas aria-label="Vista previa de la foto"></canvas><div class="crop-box">${['nw','ne','sw','se'].map(c=>`<span class="crop-handle ${c}" data-corner="${c}"></span>`).join('')}</div></div></div>
     <details><summary>Ajustar bordes con precisión</summary><div class="crop-ranges">${[['left','Izquierda'],['right','Derecha'],['top','Arriba'],['bottom','Abajo']].map(([key,label])=>`<label>${label}<input data-edge="${key}" aria-label="Borde ${esc(label.toLowerCase())}" type="range" min="0" max="100" step="1" value="${key==='right'||key==='bottom'?100:0}"></label>`).join('')}</div>
     </details><div class="crop-tools"><button type="button" class="btn secondary" data-action="rotate">Girar 90°</button><button type="button" class="btn ghost" data-action="reset">Foto completa</button></div>
+    <button type="button" class="btn secondary" data-action="instructions" aria-expanded="false" aria-controls="crop-instruction-field">Dar instrucción</button><div id="crop-instruction-field" class="field" hidden><label for="crop-instructions">Instrucción opcional para la IA</label><textarea id="crop-instructions" rows="3" maxlength="2000" placeholder="Por ejemplo: extrae solo la canción 40 y conserva sus acordes."></textarea><p>Puedes dejarlo vacío para usar la lectura habitual.</p></div>
     <p class="crop-error" role="status"></p>
     <div class="crop-tools"><button type="button" class="btn secondary" data-action="cancel">Cancelar</button><button type="button" class="btn primary" data-action="read">Recortar y leer</button></div></div>`;
   document.body.append(layer);
   const canvas = layer.querySelector('canvas'), stage = layer.querySelector('.crop-stage'), box = layer.querySelector('.crop-box');
+  layer.querySelector('#crop-instructions').value=instructions;
   const ctx = canvas.getContext('2d');
   let angle=0, rect={left:0,top:0,right:100,bottom:100}, drag=null, finished=false;
   let zoom=1;
@@ -66,7 +68,7 @@ export async function cropImage(file) {
     function key(e) {
       if(e.key==='Escape'){e.preventDefault();e.stopImmediatePropagation();cancel();}
       if(e.key==='Tab'){
-        const nodes=[...layer.querySelectorAll('button:not(:disabled),input')];
+        const nodes=[...layer.querySelectorAll('button:not(:disabled),input,textarea')].filter(n=>n.getClientRects().length);
         if(e.shiftKey&&document.activeElement===nodes[0]){e.preventDefault();nodes.at(-1).focus();}
         else if(!e.shiftKey&&document.activeElement===nodes.at(-1)){e.preventDefault();nodes[0].focus();}
       }
@@ -74,10 +76,12 @@ export async function cropImage(file) {
     document.addEventListener('keydown',key,true);window.addEventListener('pagehide',cancel);
     layer.addEventListener('click',async e=>{
       const action=e.target.closest('[data-action]')?.dataset.action;
+      if(action==='instructions'){const field=layer.querySelector('#crop-instruction-field');field.hidden=!field.hidden;e.target.closest('button').setAttribute('aria-expanded',String(!field.hidden));if(!field.hidden){layer.querySelector('#crop-instructions').focus();field.scrollIntoView({block:'nearest'});}}
       if(action==='cancel')cancel();
       if(action==='rotate'){angle=(angle+90)%360;rect={left:0,top:0,right:100,bottom:100};draw();}
       if(action==='reset'){rect={left:0,top:0,right:100,bottom:100};update();}
       if(action==='read'){
+        onInstructions(layer.querySelector('#crop-instructions').value);
         const button=e.target.closest('button');button.disabled=true;
         const out=document.createElement('canvas');
         const x=Math.round(rect.left*canvas.width/100),y=Math.round(rect.top*canvas.height/100);

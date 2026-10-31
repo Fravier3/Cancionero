@@ -591,7 +591,7 @@ async function runOcr(file,requestedMode){
  if(ocrRunning)return;if(!access.isEditor()){toast('Entra como Editor para reconocer fotos.');return;}
  if(requestedMode==='replace'&&hasContent(drafts.fresh)&&!await confirmBox({title:'¿Reemplazar el borrador?',message:'La canción sin guardar se reemplazará con esta transcripción.',okLabel:'Continuar'}))return;
  ocrRunning=true;let cropped;
- try{if(file){clearPhoto();cropped=await cropImage(file);}else cropped=getPhoto();if(!cropped)return;
+ try{if(file){clearPhoto();cropped=await cropImage(file,{instructions:$('#ai-instructions').value,onInstructions:value=>{$('#ai-instructions').value=value;}});}else cropped=getPhoto();if(!cropped)return;
   const controller=new AbortController();el.busyCancelHandler=()=>{controller.abort();cancelOcr();clearPhoto();};showBusy(cropped);el.busySub.textContent='Reconociendo letra y acordes. Puede tardar hasta dos minutos.';
   const results=await recognizePhoto(cropped,{signal:controller.signal,onStatus:onOcrStatus});if(controller.signal.aborted)return;
   if(!results.length)throw new Error('No se detectaron canciones.');
