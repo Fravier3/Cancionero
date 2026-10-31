@@ -1203,9 +1203,9 @@ html, body, #app, .topbar, .tabbar { background: #fff; color-scheme: only light;
 .reading-card strong {display:block;font-size:19px;line-height:1.35;}.reading-excerpt {display:block;color:var(--muted);font-size:15px;line-height:1.5;margin-top:8px;}
 .reading-card>span:last-child {color:var(--muted);font-size:26px;}.reading-cards+.note {margin:18px 0;}
 .readings-footer {display:grid;gap:16px;margin:24px 0;}.readings-footer p {font-size:12px;line-height:1.6;color:var(--muted);}.readings-footer a {color:var(--primary);}
-/* Roomy reading: native pinch zoom remains enabled, plus persistent A-/A+ controls. */
+/* Reader size is controlled through A-/A+. */
 .reader-scroll {padding:20px max(18px,env(safe-area-inset-right)) 32px max(18px,env(safe-area-inset-left));}
-.reader-lyrics {font-size:var(--fs,28px);line-height:1.55;font-weight:500;touch-action:pan-x pan-y pinch-zoom;}
+.reader-lyrics {font-size:var(--fs,28px);line-height:1.55;font-weight:500;touch-action:pan-x pan-y;}
 .reader-scroll h2 {font-size:28px;}.reader-bar {flex:none;}.mass-reader-nav{flex:none;}
 @media(min-width:900px){.reader-scroll{padding-left:max(28px,calc((100vw - 900px)/2));padding-right:max(28px,calc((100vw - 900px)/2));}.reading-cards{grid-template-columns:1fr 1fr;}}
 @media(max-width:370px){.brand h1{font-size:18px;}.mode-pill{padding:8px;font-size:12px;}.reader-actions{gap:2px;}.reader-actions .size-btn{min-width:42px;}.reader-actions .icon-btn{width:38px;}}
@@ -1245,3 +1245,5 @@ html, body, #app, .topbar, .tabbar { background: #fff; color-scheme: only light;
 #crop-instructions{min-height:110px;resize:vertical;}
 
 .song-snippet{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;line-height:1.45;}
+
+html,body,button,a,input,select,textarea,summary,.reader-lyrics{touch-action:pan-x pan-y;}

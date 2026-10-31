@@ -39,7 +39,7 @@ export function initGospel({openReading,closeOtherReaders,canEdit=()=>false}){
     <p class="readings-status" role="status">${esc(message)}</p>
     ${canEdit()&&data?.date===date?'<button type="button" class="btn secondary" data-psalm-edit>Editar respuesta del salmo (R.)</button>':''}
     <div class="reading-cards">${data?.date===date?data.readings.map((r,i)=>`<button class="reading-card" data-reading="${i}"><span class="reading-number">${i+1}</span><span><small>${esc(r.label)}</small><strong>${esc(r.title)}</strong><span class="reading-excerpt">${esc(r.text.slice(0,115))}…</span></span><span aria-hidden="true">›</span></button>`).join(''):''}</div>
-    ${data?.date===date?'<p class="note">Toca una lectura para verla a pantalla completa. Amplía con A+ o pellizcando la pantalla.</p>':''}
+    ${data?.date===date?'<p class="note">Toca una lectura para verla a pantalla completa. Amplía con A+ y reduce con A−.</p>':''}
     <div class="readings-footer"><button class="btn secondary" type="button" data-readings-refresh>Actualizar lecturas</button><p>Fuente: <a href="https://www.evangeliodeldia.org/" target="_blank" rel="noopener noreferrer">Evangelizo · Evangelio del día</a><br>Salmo responsorial: USCCB (leccionario de México; puede variar en tu parroquia).<br>Calendario romano ordinario · Español</p></div>`;
   }
   async function show(force=false){

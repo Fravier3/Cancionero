@@ -24,6 +24,7 @@ Deno.serve(async req=>{
   await rpc('cancionero_auth',{p_action:'verify',p_token:token});
   if(['verify','logout','revoke_all'].includes(action))return reply(req,await rpc('cancionero_auth',{p_action:action,p_token:token}));
   if(['category_order','psalm_response_save'].includes(action))return reply(req,await rpc('cancionero_settings',{p_token:token,p_action:action,p_data:input.data}));
+  if(action==='mass_delete'){if(!/^20\d{2}-\d{2}-\d{2}$/.test(input.data?.date||'')||!Number.isInteger(input.data?.revision))throw new ApiError('Misa inválida.');return reply(req,await rpc('cancionero_delete_mass',{p_token:token,p_date:input.data.date,p_revision:input.data.revision}));}
   if(action==='status')return reply(req,{ok:true,aiConfigured:Boolean(Deno.env.get('OPENAI_API_KEY')),model:'gpt-5.4-mini-2026-03-17',dailyLimit:20,lifetimeLimit:60});
   if(!['song_save','song_delete','category_save','category_delete','migrate','mass_save'].includes(action))throw new ApiError('Acción no permitida.');
   if(action==='song_save'||action==='migrate'){

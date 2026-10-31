@@ -13,7 +13,7 @@ async function request(url, options={}) {
   } finally {clearTimeout(timer);}
 }
 export async function fetchMass(date){
-  const rows=await request(`${endpoint}?date=eq.${encodeURIComponent(date)}&select=date,entries,revision,updated_at`);
+  const rows=await request(`${endpoint}?date=eq.${encodeURIComponent(date)}&select=date,entries,revision,updated_at,deleted_at`);
   return rows[0]||null;
 }
 export async function publishMass(date,entries,revision){
@@ -21,3 +21,5 @@ export async function publishMass(date,entries,revision){
  try {const {call}=await import('./api.js');const result=await call('mass_save',{date,entries:clean,revision});return result.mass;}
  catch(error){if(error.status===409)throw new ConflictError(error.message);throw error;}
 }
+
+export async function deleteMass(date,revision){try{const {call}=await import('./api.js');return (await call('mass_delete',{date,revision})).mass;}catch(error){if(error.status===409)throw new ConflictError(error.message);throw error;}}

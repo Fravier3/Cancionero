@@ -1,4 +1,6 @@
 // Mi Cancionero — lógica principal de la interfaz.
+import {initZoomGuard} from './zoom.js';
+initZoomGuard();
 import {searchSongs,matchingSnippet} from './search.js';
 import {categoryIds,categoryLabels} from './categories.js';
 import { $, $$, esc, norm, debounce, readStorage, writeStorage } from './util.js';

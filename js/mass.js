@@ -1,12 +1,13 @@
 import { db } from './db.js';
 import { esc, norm } from './util.js';
 import { toast, confirmBox } from './ui.js';
-import { fetchMass, publishMass, ConflictError } from './shared-mass.js';
+import { fetchMass, publishMass, deleteMass, ConflictError } from './shared-mass.js';
 import { sundayFor, shiftSunday, sundayLabel, parseDate } from './dates.js';
 
 export function initMass({ getSongs, categoryName, openSong, canEdit=()=>true }) {
   const root=document.querySelector('#view-mass');
   let selected=sundayFor(), autoDate=selected, entries=[], generation=0, saving=false, search='';
+  let published=false;
   let editing=false, revision=null, online=false, syncMessage='', localPlan=null, syncing=false;
   let readerEntries=[], readerIndex=0, readerDate='';
   const nav=document.querySelector('#mass-reader-nav');
@@ -22,6 +23,7 @@ export function initMass({ getSongs, categoryName, openSong, canEdit=()=>true })
     <p class="note">${entries.length} ${entries.length===1?'canción preparada':'canciones preparadas'} · ${editing?'Editando · cambios sin publicar':'Compartida con todos'}</p>
     <p id="mass-sync" class="mass-sync" role="status">${esc(syncMessage)}</p>
     <div class="mass-edit-tools">${editing?'<button class="btn primary" data-mass="save">Guardar cambios para todos</button><button class="btn secondary" data-mass="cancel">Cancelar</button>':`<button class="btn secondary" data-mass="edit" ${canEdit()?'':'hidden'} ${online?'':'disabled'}>Organizar misa</button>${entries.length&&canEdit()?`<button class="btn ghost" data-mass="edit" ${online?'':'disabled'}>Editar misa</button>`:''}<button class="btn ghost" data-mass="refresh">Actualizar</button>`}</div>
+    ${canEdit()&&published?`<button type="button" class="btn ghost block" data-mass="delete" ${online?'':'disabled'}>Borrar misa</button>`:''}
     ${editing&&localPlan?.entries?.length&&!entries.length?'<button class="link" data-mass="restore">Usar mi misa guardada en este dispositivo</button>':''}
     <button class="btn primary block big" data-mass="start" ${entries.length?'':'disabled'}>Comenzar misa</button>
     <ol class="mass-order">${entries.map((e,i)=>`<li><span class="mass-number">${i+1}</span><button class="mass-song" data-mass="read" data-index="${i}"><strong>${esc(e.title)}</strong><small>${esc(e.category||'Sin categoría')}</small></button>${editing?`<div class="mass-controls">
@@ -43,14 +45,14 @@ export function initMass({ getSongs, categoryName, openSong, canEdit=()=>true })
     try {
       localPlan=await db.masses.get(date);
       const record=await fetchMass(date);if(token!==generation)return;
-      revision=record?.revision??null;entries=record?.entries||[];online=true;
-      syncMessage=record?'Sincronizada · todos ven este repertorio.':'Aún no se ha publicado esta misa.';
+      revision=record?.revision??null;published=Boolean(record&&!record.deleted_at);entries=record?.deleted_at?[]:record?.entries||[];online=true;
+      syncMessage=published?'Sincronizada · todos ven este repertorio.':'Aún no se ha publicado esta misa.';
       if(record)await db.masses.put({...record,updatedAt:Date.now()}).catch(()=>{});
       render();
     } catch {
       if(token!==generation)return;
       const cached=localPlan?.revision?localPlan:null;
-      revision=cached?.revision??null;entries=cached?.entries||[];
+      revision=cached?.revision??null;published=Boolean(cached&&!cached.deleted_at);entries=cached?.deleted_at?[]:cached?.entries||[];
       syncMessage=cached?'Sin conexión · mostrando la última misa descargada.':'Sin conexión. Pulsa Actualizar para cargar la misa compartida.';
       render();
     } finally {if(token===generation){root.removeAttribute('aria-busy');root.inert=false;}}
@@ -64,7 +66,7 @@ export function initMass({ getSongs, categoryName, openSong, canEdit=()=>true })
     if(!editing||saving||!canEdit())return;saving=true;root.inert=true;status('Guardando para todos…');
     try {
       const record=await publishMass(selected,entries,revision);
-      revision=record.revision;entries=record.entries;editing=false;online=true;
+      revision=record.revision;published=true;entries=record.entries;editing=false;online=true;
       syncMessage='Cambios guardados para todos.';
       await db.masses.put({...record,updatedAt:Date.now()}).catch(()=>{});render();window.dispatchEvent(new Event('cancionero:mass-updated'));toast('Misa compartida actualizada');
     } catch(err) {
@@ -75,6 +77,13 @@ export function initMass({ getSongs, categoryName, openSong, canEdit=()=>true })
       }
     } finally {saving=false;root.inert=false;}
   }
+  async function removeMass(){
+   if(!canEdit()||saving||!online||!published)return;
+   const date=selected,expected=revision;
+   if(!await confirmBox({title:'¿Estás seguro que quieres borrar esta misa?',message:sundayLabel(date)+'. Se borrará el repertorio para todos. Las canciones de la biblioteca se conservan.',okLabel:'Borrar misa',danger:true}))return;
+   saving=true;root.inert=true;
+   try{const record=await deleteMass(date,expected);revision=record.revision;entries=[];published=false;editing=false;localPlan=record;await db.masses.put({...record,updatedAt:Date.now()});resetReader();syncMessage='Misa borrada para todos.';render();window.dispatchEvent(new Event('cancionero:mass-updated'));toast('Misa borrada');}catch(error){status(error.message);toast(error.message,5000);}finally{saving=false;root.inert=false;}
+  }
   async function sync(){
     if(syncing||editing||saving||root.hidden||document.visibilityState!=='visible')return;
     syncing=true;const date=selected,token=generation;
@@ -82,14 +91,14 @@ export function initMass({ getSongs, categoryName, openSong, canEdit=()=>true })
       const record=await fetchMass(date);if(date!==selected||token!==generation||editing)return;
       const changed=(record?.revision??null)!==revision;online=true;
       if(changed){
-        revision=record?.revision??null;entries=record?.entries||[];
+        revision=record?.revision??null;published=Boolean(record&&!record.deleted_at);entries=record?.deleted_at?[]:record?.entries||[];
         syncMessage='Repertorio actualizado por otro participante.';render();
         if(record)await db.masses.put({...record,updatedAt:Date.now()}).catch(()=>{});
         if(readerEntries.length&&readerDate===date){
           refreshReader.hidden=false;
         }
-      }else{status(record?'Sincronizada · todos ven este repertorio.':'Aún no se ha publicado esta misa.');const edit=root.querySelector('[data-mass="edit"]');if(edit)edit.disabled=false;}
-    }catch{online=false;status('Sin conexión · mostrando la última misa descargada.');const edit=root.querySelector('[data-mass="edit"]');if(edit)edit.disabled=true;}
+      }else{status(record&&!record.deleted_at?'Sincronizada · todos ven este repertorio.':'Aún no se ha publicado esta misa.');const edit=root.querySelector('[data-mass="edit"]');if(edit)edit.disabled=false;const remove=root.querySelector('[data-mass=delete]');if(remove)remove.disabled=false;}
+    }catch{online=false;status('Sin conexión · mostrando la última misa descargada.');const edit=root.querySelector('[data-mass="edit"]');if(edit)edit.disabled=true;const remove=root.querySelector('[data-mass=delete]');if(remove)remove.disabled=true;}
     finally{syncing=false;}
   }
   function displayReader(){
@@ -118,6 +127,7 @@ export function initMass({ getSongs, categoryName, openSong, canEdit=()=>true })
     if(action==='today')return switchDate(sundayFor());
     if(action==='refresh')return show();
     if(action==='edit'&&online&&canEdit()){editing=true;render();return;}
+    if(action==='delete')return removeMass();
     if(action==='save')return save();
     if(action==='cancel')return switchDate(selected);
     if(action==='restore'&&editing){entries=structuredClone(localPlan.entries);render();return;}
