@@ -1251,3 +1251,13 @@ html,body,button,a,input,select,textarea,summary,.reader-lyrics{touch-action:pan
 .mass-slots{display:grid;gap:14px;margin:20px 0}.mass-slot{padding:16px;border:1px solid var(--line);border-radius:14px}.mass-slot h3{margin-bottom:10px}.mass-slot-mode{display:flex;gap:20px;margin-bottom:12px}.mass-slot-mode label{display:flex;gap:8px;align-items:center;min-height:44px}.mass-slot input:not([type=radio]),.mass-slot select{width:100%;min-height:48px;font:inherit;font-size:16px;background:white;border:1px solid var(--line);padding:12px;border-radius:10px}.mass-slot input[type=radio]{width:20px;height:20px;accent-color:var(--primary)}
 
 .mass-picker{position:relative}.mass-picker summary{list-style:none;cursor:pointer;min-height:48px;padding:12px 38px 12px 12px;border:1px solid var(--line);border-radius:10px;position:relative}.mass-picker summary::-webkit-details-marker{display:none}.mass-picker summary::after{content:'⌄';position:absolute;right:12px}.mass-picker-menu{position:relative;margin-top:6px;padding:8px;border:1px solid var(--line);border-radius:12px;background:#fff;box-shadow:0 8px 24px #0001}.mass-picker-menu>div{max-height:280px;overflow:auto}.mass-pick-result{display:flex;flex-direction:column;gap:5px;text-align:left;width:100%;min-height:48px;padding:12px;border:0;border-bottom:1px solid var(--line);background:white;color:var(--text);font:inherit}.mass-pick-result strong{text-transform:uppercase}.mass-pick-result small{line-height:1.45;color:var(--muted);white-space:normal;overflow-wrap:anywhere}
+
+/* Touch a word to position a chord; number fields use human word counts. */
+.chord-placement{display:grid;grid-template-columns:1.4fr .8fr .8fr;gap:10px;margin-top:16px;}
+.chord-placement label{font-size:13px;font-weight:650;min-width:0;}
+.chord-placement input,.chord-placement select,.chord-edit-row select{display:block;width:100%;min-width:0;min-height:48px;margin-top:4px;padding:10px 8px;font:inherit;font-size:16px;color:var(--text);background:#fff;border:1px solid var(--line);border-radius:9px;}
+.chord-target{margin:12px 0;line-height:1.6;min-height:2em;}
+.chord-add-row{flex-wrap:wrap;}
+.music-preview [data-word-line]{cursor:pointer;border-radius:5px;min-height:44px;outline-offset:2px;touch-action:manipulation;}
+.music-preview [data-word-line]:focus-visible{outline:2px solid var(--primary);}
+.music-preview .word-selected{background:#eeeafa;box-shadow:0 2px 0 var(--primary);}

@@ -107,9 +107,11 @@
           </div>
 
           <details class="music-editor-panel"><summary>Editar acordes y vista previa</summary>
-            <p class="note">Selecciona la palabra o sílaba en la letra. Cada acorde queda asociado a una línea y un carácter; puedes corregirlos abajo.</p>
-            <div class="chord-add-row"><input id="new-chord" aria-label="Nuevo acorde" maxlength="24" placeholder="Ej.: Mi−, Do+"><button id="chord-add" type="button" class="btn secondary">Añadir acorde</button></div>
-            <div id="music-editor"></div><h3>Vista previa</h3><div id="music-preview" class="music-preview"></div>
+            <p class="note">Escoge un acorde y toca una palabra en la vista previa para colocarlo encima. Puedes corregir la línea y la palabra con los campos. Las líneas vacías también cuentan.</p>
+            <div class="chord-placement"><label>Acorde<select id="new-chord" aria-label="Nuevo acorde"></select></label><label>Línea<input id="chord-line" type="number" inputmode="numeric" min="1" value="1" aria-label="Línea para el acorde"></label><label>Palabra<input id="chord-word" type="number" inputmode="numeric" min="1" value="1" aria-label="Palabra para el acorde"></label></div>
+            <p id="chord-target" class="note chord-target" role="status"></p>
+            <div class="chord-add-row"><button id="chord-add" type="button" class="btn secondary" disabled>Añadir acorde</button><button id="chord-another" type="button" class="btn ghost" hidden>Otro acorde</button></div>
+            <h3>Vista previa · toca una palabra</h3><div id="music-preview" class="music-preview"></div><h3>Acordes añadidos</h3><div id="music-editor"></div>
           </details>
           <button id="reprocess-photo" type="button" class="btn secondary block" hidden>Volver a procesar foto temporal</button>
           <div class="editor-actions">
