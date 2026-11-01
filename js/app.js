@@ -314,7 +314,7 @@ async function navigate(view) {
   if (view === 'add' && state.addMode === 'editor') renderEditor();
   if (view === 'library') {renderLibrary();store.syncLibrary();syncSharedSongs();}
   applyView();
-  if (view === 'mass') await mass.show();
+  if (view === 'mass') {await store.syncLibrary();await refresh();await mass.show();}
   if (view === 'gospel') await gospel.show();
   return true;
 }
@@ -1036,9 +1036,9 @@ const access = initAccess({onChange:()=>{applyAccess();closeReader();},beforeCha
   return true;
 }});
 const music=initMusicEditor({getDraft:currentDraft,onChanged:onDraftChanged});
-window.addEventListener('cancionero:sync',async()=>{await refresh();renderLibrary();if(!el.sheet.hidden)renderSheet();});
+window.addEventListener('cancionero:sync',async()=>{await refresh();mass.refreshSongs();renderLibrary();if(!el.sheet.hidden)renderSheet();});
 window.addEventListener('online',()=>store.syncLibrary());
 window.addEventListener('cancionero:mass-updated',syncSharedSongs);
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&state.view==='library')syncSharedSongs();});
-setInterval(()=>{if(state.view==='library'&&document.visibilityState==='visible'){store.syncLibrary();syncSharedSongs();}},30000);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&['library','mass'].includes(state.view)){store.syncLibrary();syncSharedSongs();}});
+setInterval(()=>{if(['library','mass'].includes(state.view)&&document.visibilityState==='visible'){store.syncLibrary();syncSharedSongs();}},30000);
 init();
