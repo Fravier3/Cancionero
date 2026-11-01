@@ -1261,3 +1261,7 @@ html,body,button,a,input,select,textarea,summary,.reader-lyrics{touch-action:pan
 .music-preview [data-word-line]{cursor:pointer;border-radius:5px;min-height:44px;outline-offset:2px;touch-action:manipulation;}
 .music-preview [data-word-line]:focus-visible{outline:2px solid var(--primary);}
 .music-preview .word-selected{background:#eeeafa;box-shadow:0 2px 0 var(--primary);}
+
+/* Restoring a list must use stable coordinates, including during tab entry. */
+#view-library{animation-name:library-in;}
+@keyframes library-in{from{opacity:0;}}

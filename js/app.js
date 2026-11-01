@@ -112,6 +112,22 @@ const el = {
   busySub: $('#busy-sub'),
 };
 
+// Keep the visible song in place while shared data refreshes or a reader closes.
+let libraryPosition=null,readerLibraryPosition=null,lastListHtml=null,lastChipsHtml=null;
+if('scrollRestoration' in history)history.scrollRestoration='manual';
+function captureLibraryPosition(){
+ const top=document.querySelector('.topbar')?.getBoundingClientRect().bottom||0;
+ const anchors=[...el.list.querySelectorAll('.song')].map(row=>({id:row.dataset.id,top:row.getBoundingClientRect().top,bottom:row.getBoundingClientRect().bottom})).filter(row=>row.bottom>top&&row.top<innerHeight).map(({id,top})=>({id,top}));
+ return {x:window.scrollX,y:window.scrollY,anchors};
+}
+function restoreLibraryPosition(position){
+ if(!position||state.view!=='library')return;
+ const rows=[...el.list.querySelectorAll('.song')];
+ for(const anchor of position.anchors){const row=rows.find(row=>row.dataset.id===anchor.id);if(row){window.scrollTo(position.x,window.scrollY+row.getBoundingClientRect().top-anchor.top);return;}}
+ window.scrollTo(position.x,position.y);
+}
+function setListHtml(html){if(html!==lastListHtml){el.list.innerHTML=html;lastListHtml=html;}}
+
 /* ============================================================
    Datos
    ============================================================ */
@@ -187,9 +203,9 @@ function renderChips() {
     if (n > 0 || state.cat === c.id) parts.push(chipHtml(c.id, c.name, n));
   }
   if (none > 0 || state.cat === 'none') parts.push(chipHtml('none', 'Sin categoría', none));
-  el.chips.innerHTML = parts.join('');
+  const html=parts.join('');if(html!==lastChipsHtml){el.chips.innerHTML=html;lastChipsHtml=html;}
   el.chips.hidden = state.songs.length === 0;
-  el.chips.querySelector('[aria-pressed="true"]')?.scrollIntoView({ block: 'nearest', inline: 'center' });
+  const selected=el.chips.querySelector('[aria-pressed="true"]');if(selected&&el.chips.clientWidth){const box=el.chips.getBoundingClientRect(),item=selected.getBoundingClientRect();if(item.left<box.left||item.right>box.right)el.chips.scrollLeft+=(item.left+item.right-box.left-box.right)/2;}
 }
 
 function songRowHtml({ s, score }, searching) {
@@ -223,7 +239,7 @@ function renderList() {
   el.qClear.hidden = state.q === '';
   if (state.songs.length === 0) {
     el.info.textContent = '';
-    el.list.innerHTML = emptyHtml();
+    setListHtml(emptyHtml());
     hydrateIcons(el.list);
     return;
   }
@@ -235,11 +251,11 @@ function renderList() {
   } else el.info.textContent = '';
 
   if (rows.length === 0) {
-    el.list.innerHTML = `<div class="empty">
+    setListHtml(`<div class="empty">
         <span class="empty-mark">${icon('search', 32)}</span>
         <h3>Sin resultados</h3>
         <p>Prueba con otra palabra, un fragmento distinto o cambia la categoría.</p>
-      </div>`;
+      </div>`);
     return;
   }
 
@@ -256,7 +272,7 @@ function renderList() {
     }
     html += songRowHtml(row, searching);
   }
-  el.list.innerHTML = html;
+  setListHtml(html);
   if (state.flashId) {
     el.list.querySelector('.song.flash')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
     state.flashId = null;
@@ -264,9 +280,11 @@ function renderList() {
 }
 
 function renderLibrary() {
+  const position=state.view==='library'?(el.reader.hidden?captureLibraryPosition():readerLibraryPosition):null,flash=Boolean(state.flashId);
   renderSubtitle();
   renderChips();
   renderList();
+  if(!flash)restoreLibraryPosition(position);
 }
 
 /* ============================================================
@@ -274,7 +292,7 @@ function renderLibrary() {
    ============================================================ */
 const isEditDirty = () => {const d=drafts.edit;return Boolean(d)&&JSON.stringify({title:d.title,lyrics:d.lyrics,categoryId:d.categoryId,categoryIds:categoryIds(d),number:d.number,key:d.key,chords:d.chords})!==JSON.stringify(d.orig);};
 
-function applyView() {
+function applyView({resetScroll=true}={}) {
   for (const [name, node] of Object.entries(el.views)) node.hidden = name !== state.view;
   $('#view-editor').hidden = state.view !== 'add' || state.addMode !== 'editor';
   $('#view-scan').hidden = state.view !== 'add' || state.addMode !== 'scan';
@@ -284,7 +302,7 @@ function applyView() {
     if (tab.dataset.tab === active) tab.setAttribute('aria-current', 'page');
     else tab.removeAttribute('aria-current');
   });
-  window.scrollTo(0, 0);
+  if(resetScroll){if(state.view==='library'&&libraryPosition)restoreLibraryPosition(libraryPosition);else window.scrollTo(0,0);}
 }
 
 async function navigate(view) {
@@ -309,6 +327,7 @@ async function navigate(view) {
   }
   if(method) state.addMode = method;
   if(view!=='add')clearPhoto();
+  if(state.view==='library')libraryPosition=el.reader.hidden?captureLibraryPosition():readerLibraryPosition;
   state.view = view;
   updateDraftDot();
   if (view === 'add' && state.addMode === 'editor') renderEditor();
@@ -641,6 +660,7 @@ function openReader(id) {
 }
 
 function displaySong(song) {
+  if(el.reader.hidden&&state.view==='library'){readerLibraryPosition=captureLibraryPosition();libraryPosition=readerLibraryPosition;}
   state.readerId = song.id ?? null;
   const editable = access.isEditor() && Boolean(song.id) && !song.shared;
   $('#rd-edit').hidden = !editable; $('#rd-delete').hidden = !editable;
@@ -666,6 +686,7 @@ function closeReader({ fromPop = false } = {}) {
   releaseAwake();
   if (!fromPop && history.state?.reader) history.back();
   if (state.view === 'mass') mass.show();
+  if(state.view==='library'&&readerLibraryPosition){const position=readerLibraryPosition;restoreLibraryPosition(position);requestAnimationFrame(()=>{if(el.reader.hidden)restoreLibraryPosition(position);});}
 }
 
 async function deleteFromReader() {
@@ -1026,7 +1047,7 @@ function applyAccess(){
   $('[data-tab="add"]').hidden=!editor;$('#btn-settings').hidden=false;
   document.body.dataset.mode=editor?'editor':'viewer';
   if(!editor && state.view==='add'){state.editing=false;drafts.edit=null;captureQueue=[];captureTotal=0;captureIndex=0;if(drafts.fresh.transient)drafts.fresh=emptyDraft();state.view='library';}
-  gospel.updateAccess();mass.setCanEdit(editor);if(!editor){clearPhoto();closeSheet();}refresh().then(()=>{renderLibrary();applyView();}).catch(()=>{});
+  gospel.updateAccess();mass.setCanEdit(editor);if(!editor){clearPhoto();closeSheet();}refresh().then(()=>{renderLibrary();applyView({resetScroll:false});}).catch(()=>{});
 }
 const mass = initMass({ getSongs: () => state.songs.filter(s=>!s.shared), categoryName: catName, openSong: song=>{gospel.resetReader();displaySong(song);}, canEdit:()=>access.isEditor() });
 const gospel = initGospel({canEdit:()=>access.isEditor(),openReading:displaySong,closeOtherReaders:()=>mass.resetReader()});
