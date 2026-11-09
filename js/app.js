@@ -670,7 +670,7 @@ function displaySong(song) {
   el.rdCat.textContent = catName(song);
   state.readerSong=song;
   renderReaderMusic();
-  mountAudio(document.querySelector('#rd-audio'),state.songs.find(s=>String(s.id)===String(song.songId||song.id))||song,{canEdit:()=>access.isEditor(),onSaved:async()=>{await store.syncLibrary();await refresh();},onMass:s=>addToMass(s,{canEdit:()=>access.isEditor(),categoryName:catName})});
+  mountAudio(document.querySelector('#rd-audio'),state.songs.find(s=>String(s.id)===String(song.songId||song.id))||song,{canEdit:()=>access.isEditor(),onSaved:async()=>{await store.syncLibrary();await refresh();},onMass:s=>addToMass(s,{canEdit:()=>access.isEditor(),categoryName:catName,categoryNames:song=>categoryLabels({...song,categoryIds:songCategories(song)},state.cats)})});
   $('#rd-key').textContent=keyLabel(song.key);
   applyFontSize(currentFontSize());
   el.reader.hidden = false;
