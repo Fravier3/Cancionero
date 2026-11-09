@@ -6,7 +6,7 @@ let html=await readFile('dist/index.html','utf8');
 html=html.replace(/window\.APP_VERSION\s*=\s*'[^']*'/,`window.APP_VERSION = '${version}'`);
 const inline=html.match(/<script>([\s\S]*?)<\/script>/)?.[1]||'';
 const hash=createHash('sha256').update(inline).digest('base64');
-const csp="default-src 'self'; script-src 'self' 'sha256-"+hash+"' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; worker-src 'self' blob:; connect-src 'self' https://syyealdlapxmpeccaary.supabase.co https://feed.evangelizo.org; object-src 'none'; base-uri 'self'; form-action 'none'";
+const csp="default-src 'self'; script-src 'self' 'sha256-"+hash+"' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; media-src 'self' blob: https://syyealdlapxmpeccaary.supabase.co; worker-src 'self' blob:; connect-src 'self' https://syyealdlapxmpeccaary.supabase.co https://feed.evangelizo.org; object-src 'none'; base-uri 'self'; form-action 'none'";
 html=html.replace('<meta charset="utf-8">','<meta charset="utf-8">\n  <meta http-equiv="Content-Security-Policy" content="'+csp+'">');await writeFile('dist/index.html',html);
 const assets=(await files('dist')).filter(p=>p!=='sw.js'&&p!=='version.json');
 await writeFile('dist/version.json',JSON.stringify({version}));

@@ -1,3 +1,5 @@
+import {mountAudio,closeAudio,audioBusy} from './audio.js';
+import {addToMass} from './add-to-mass.js';
 // Mi Cancionero — lógica principal de la interfaz.
 import {initZoomGuard} from './zoom.js';
 initZoomGuard();
@@ -214,7 +216,7 @@ function songRowHtml({ s, score }, searching) {
   const cat = catName(s);
   return `<button type="button" class="song${flash}" data-id="${s.id}">
     <span class="song-main">
-      <span class="song-title">${esc(s.title)}</span>
+      <span class="song-title">${esc(s.title)}${s.audio_path?' <small class="audio-badge">Audio</small>':''}</span>
       ${snippet ? `<span class="song-snippet">“${esc(snippet)}”</span>` : ''}
     </span>
     ${cat ? `<span class="badge">${esc(cat)}</span>` : ''}
@@ -668,6 +670,7 @@ function displaySong(song) {
   el.rdCat.textContent = catName(song);
   state.readerSong=song;
   renderReaderMusic();
+  mountAudio(document.querySelector('#rd-audio'),state.songs.find(s=>String(s.id)===String(song.songId||song.id))||song,{canEdit:()=>access.isEditor(),onSaved:async()=>{await store.syncLibrary();await refresh();},onMass:s=>addToMass(s,{canEdit:()=>access.isEditor(),categoryName:catName})});
   $('#rd-key').textContent=keyLabel(song.key);
   applyFontSize(currentFontSize());
   el.reader.hidden = false;
@@ -678,8 +681,10 @@ function displaySong(song) {
 
 function renderReaderMusic(){const song=state.readerSong;if(!song)return;const show=readStorage('cancionero.show-chords','1')==='1';$('#show-chords').checked=show;el.rdLyrics.innerHTML=renderMusic(song.lyrics,song.chords||[],show);}
 
-function closeReader({ fromPop = false } = {}) {
+async function closeReader({ fromPop = false } = {}) {
   if (el.reader.hidden) return;
+  if(audioBusy()&&!await confirmBox({title:'¿Salir del fragmento?',message:'La grabación sin guardar se descartará.',okLabel:'Salir sin guardar'})){if(fromPop)history.pushState({reader:true},'');return;}
+  closeAudio();
   el.reader.hidden = true;
   mass.resetReader(); gospel.resetReader();
   state.readerId = null;
@@ -1034,7 +1039,7 @@ async function init() {
   applyAccess();
   store.syncLibrary();syncSharedSongs();
   initPWA({
-    canReload: () => !access.isChoosing() && !mass.isEditing() && !ocrRunning && !isEditDirty() && !hasContent(drafts.fresh),
+    canReload: () => !audioBusy() && !access.isChoosing() && !mass.isEditing() && !ocrRunning && !isEditDirty() && !hasContent(drafts.fresh),
     onBeforeReload: () => {
       persistDraft.flush();
       toast('Actualizando la app…');
