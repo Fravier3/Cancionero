@@ -1,3 +1,4 @@
+import {resolveMassSong} from './mass-plan.js';
 import {mountAudio,mountMassAudio,closeAudio,audioBusy} from './audio.js';
 import {addToMass} from './add-to-mass.js';
 // Mi Cancionero — lógica principal de la interfaz.
@@ -147,8 +148,9 @@ async function refresh() {
 }
 
 function mergeSongs(){
+  const ids=new Set(state.localSongs.map(s=>String(s.id)));
   const unique=new Set(state.localSongs.map(s=>norm(s.title)+'|'+norm(s.lyrics)));
-  const seen=new Set();state.songs=[...state.localSongs,...state.sharedSongs.filter(s=>!unique.has(norm(s.title)+'|'+norm(s.lyrics)))].filter(s=>{const key=norm(s.title)+'|'+norm(s.lyrics);if(seen.has(key))return false;seen.add(key);return true;}).map(s=>({...s,_t:norm(s.title),_l:norm(s.lyrics)}));
+  const seen=new Set();state.songs=[...state.localSongs,...state.sharedSongs.filter(s=>!ids.has(s.songId)&&!unique.has(norm(s.title)+'|'+norm(s.lyrics)))].filter(s=>{const key=norm(s.title)+'|'+norm(s.lyrics);if(seen.has(key))return false;seen.add(key);return true;}).map(s=>({...s,_t:norm(s.title),_l:norm(s.lyrics)}));
   state.songs.sort((a,b)=>a._t.localeCompare(b._t,'es'));
 }
 let sharedLoading=false;
@@ -735,7 +737,7 @@ function displaySong(song, fromMass = false, refresh = false) {
 
 function renderReaderMusic(){const song=state.readerSong;if(!song)return;const show=readStorage('cancionero.show-chords','1')==='1';$('#show-chords').checked=show;el.rdLyrics.innerHTML=renderMusic(song.lyrics,song.chords||[],show);}
 
-async function closeReader({ fromPop = false } = {}) {
+async function closeReader({ fromPop = false, refreshMass = true } = {}) {
   if (el.reader.hidden) return;
   if(audioBusy()&&!await confirmBox({title:'¿Salir del fragmento?',message:'La grabación sin guardar se descartará.',okLabel:'Salir sin guardar'})){if(fromPop)history.pushState({reader:true},'');return;}
   closeAudio();
@@ -744,7 +746,7 @@ async function closeReader({ fromPop = false } = {}) {
   state.readerId = null;
   releaseAwake();
   if (!fromPop && history.state?.reader) history.back();
-  if (state.view === 'mass') mass.show();
+  if (state.view === 'mass' && refreshMass) mass.show();
   if(state.view==='library'&&readerLibraryPosition){const position=readerLibraryPosition;restoreLibraryPosition(position);requestAnimationFrame(()=>{if(el.reader.hidden)restoreLibraryPosition(position);});}
 }
 
@@ -1109,7 +1111,7 @@ function applyAccess(){
   if(!editor && state.view==='add'){state.editing=false;drafts.edit=null;captureQueue=[];captureTotal=0;captureIndex=0;if(drafts.fresh.transient)drafts.fresh=emptyDraft();state.view='library';}
   gospel.updateAccess();mass.setCanEdit(editor);if(!editor){clearPhoto();closeSheet();}refresh().then(()=>{renderLibrary();applyView({resetScroll:false});}).catch(()=>{});
 }
-const mass = initMass({ getSongs: () => state.songs.filter(s=>!s.shared), categoryName: catName, openSong: (song, refresh)=>{gospel.resetReader();displaySong(song, true, refresh);}, canEdit:()=>access.isEditor() });
+const mass = initMass({ getSongs: () => state.localSongs, categoryName: catName, closeSong: closeReader, syncSongs: store.syncLibrary, openSong: (song, refresh)=>{gospel.resetReader();displaySong(song, true, refresh);}, canEdit:()=>access.isEditor() });
 const gospel = initGospel({canEdit:()=>access.isEditor(),openReading:displaySong,closeOtherReaders:()=>mass.resetReader()});
 const access = initAccess({onChange:()=>{applyAccess();closeReader();},beforeChange:async()=>{
   if(state.editing&&isEditDirty())return confirmBox({title:'¿Cambiar el modo?',message:'Guarda tus cambios antes de cambiar el modo.',okLabel:'Continuar'});
@@ -1117,9 +1119,32 @@ const access = initAccess({onChange:()=>{applyAccess();closeReader();},beforeCha
   return true;
 }});
 const music=initMusicEditor({getDraft:currentDraft,onChanged:onDraftChanged});
-window.addEventListener('cancionero:sync',async()=>{await refresh();mass.refreshSongs();renderLibrary();if(!el.sheet.hidden)renderSheet();});
-window.addEventListener('online',()=>store.syncLibrary());
+window.addEventListener('cancionero:sync',async()=>{
+  await refresh();
+  mass.refreshSongs();
+  if (state.view === 'library' && !el.reader.hidden && !access.isEditor() && state.readerId != null) {
+    const current = state.readerSong;
+    const updated = current.shared ? resolveMassSong(current, state.localSongs) : state.songs.find(song => song.id === state.readerId);
+    if (updated && (updated.lyrics !== current.lyrics || updated.title !== current.title
+      || updated.number !== current.number || keyLabel(updated.key) !== keyLabel(current.key)
+      || JSON.stringify(updated.chords) !== JSON.stringify(current.chords))) {
+      state.readerSong = updated;
+      el.rdTitle.textContent = (updated.number ? updated.number + ' · ' : '') + updated.title;
+      $('#rd-key').textContent = keyLabel(updated.key);
+      renderReaderMusic();
+    }
+  }
+  renderLibrary();
+  if(!el.sheet.hidden)renderSheet();
+});
+function syncVisibleSongs(view = state.view) {
+  if(document.visibilityState!=='visible'||state.view!==view)return;
+  if(view==='mass'||view==='library')store.syncLibrary();
+  if(view==='library')syncSharedSongs();
+}
+window.addEventListener('online',()=>syncVisibleSongs());
 window.addEventListener('cancionero:mass-updated',syncSharedSongs);
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&['library','mass'].includes(state.view)){store.syncLibrary();syncSharedSongs();}});
-setInterval(()=>{if(['library','mass'].includes(state.view)&&document.visibilityState==='visible'){store.syncLibrary();syncSharedSongs();}},30000);
+document.addEventListener('visibilitychange',()=>syncVisibleSongs());
+setInterval(()=>syncVisibleSongs('mass'),15000);
+setInterval(()=>syncVisibleSongs('library'),30000);
 init();
