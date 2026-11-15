@@ -15,13 +15,15 @@ export function initPWA({ onBeforeReload, canReload } = {}) {
     onBeforeReload?.();
     location.reload();
   };
-  setInterval(tryReload, 15000);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') tryReload();
+  });
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     // En la primera instalación el SW toma el control sin que haya nada que recargar.
     if (!hadController) { hadController=true; return; }
     if (reloading) return;
+    // The new worker is ready. Keep the current screen until the app is reopened.
     pendingReload = true;
-    tryReload();
   });
 
   navigator.serviceWorker

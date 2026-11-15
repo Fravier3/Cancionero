@@ -55,7 +55,9 @@ export function initAccess({onChange,beforeChange=async()=>true}){
     if(!usePassword&&!/^[0-9]{4}$/.test(pin.value))throw new Error('Introduce el PIN de 4 dígitos.');
     submit.textContent='Verificando…';
     const result=await request('login',{password:usePassword?password.value:'pin:'+pin.value});
-    await setSession(result);role='editor';
+    if(!result?.token||!(Date.parse(result.expiresAt)>Date.now()))throw new Error('El servidor no devolvió una sesión de Editor válida.');
+    setSession(result);
+    role='editor';
    }else{
     role='viewer';
     if(getSession()){

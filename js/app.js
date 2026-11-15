@@ -21,7 +21,7 @@ import { sundayFor } from './dates.js';
 import {renderMusic,rebaseChords,keyLabel,keyFromChoice,CHORD_CHOICES,blankKey,initMusicEditor} from './music.js';
 import {initRecognition,recognizePhoto,clearPhoto,getPhoto,applyEnginePreference} from './recognition.js';
 import {call} from './api.js';
-import {clearSession} from './session.js';
+import {clearSession,canReloadSession} from './session.js';
 
 /* ============================================================
    Estado
@@ -1110,7 +1110,7 @@ async function init() {
     canReload: () => {
       const searching = state.view === 'library' && (state.q.trim() !== '' || document.activeElement === el.q);
       return document.visibilityState === 'visible' && !searching && el.reader.hidden
-        && !audioBusy() && !savingMassKey && !access.isChoosing() && !mass.isEditing()
+        && canReloadSession() && !audioBusy() && !savingMassKey && !access.isChoosing() && !mass.isEditing()
         && !ocrRunning && !isEditDirty() && !hasContent(drafts.fresh);
     },
     onBeforeReload: () => persistDraft.flush(),

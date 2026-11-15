@@ -1,7 +1,35 @@
 // A server-verifiable bearer session, kept in IndexedDB, never a role flag.
 const authDB=new window.Dexie('cancionero-auth');authDB.version(1).stores({session:'id'});
-let current=null;
-export async function loadSession(){current=await authDB.session.get('editor').catch(()=>null);if(current&&Date.parse(current.expiresAt)<Date.now()){await clearSession();}return current;}
+let current=null,persisted=false;
+
+export async function loadSession(){
+ const saved=await authDB.session.get('editor').catch(()=>null);
+ if(!saved?.token||!(Date.parse(saved.expiresAt)>Date.now()))return null;
+ current=saved;
+ persisted=true;
+ return current;
+}
+
 export const getSession=()=>current;
-export async function setSession(value){current={id:'editor',token:value.token,expiresAt:value.expiresAt};await authDB.session.put(current);window.dispatchEvent(new Event('cancionero:auth'));}
-export async function clearSession(){current=null;await authDB.session.delete('editor').catch(()=>{});window.dispatchEvent(new Event('cancionero:auth'));}
+export const canReloadSession=()=>!current||persisted;
+
+export async function setSession(value){
+ const session={id:'editor',token:value.token,expiresAt:value.expiresAt};
+ current=session;
+ persisted=false;
+ window.dispatchEvent(new Event('cancionero:auth'));
+ try{
+  await authDB.session.put(session);
+  if(current===session)persisted=true;
+ }catch{
+  // A failure to remember the session should not reject a valid sign-in.
+ }
+}
+
+export async function clearSession(){
+ current=null;
+ persisted=false;
+ const removal=authDB.session.delete('editor');
+ window.dispatchEvent(new Event('cancionero:auth'));
+ await removal.catch(()=>{});
+}
