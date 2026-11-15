@@ -12,7 +12,7 @@ export const cleanLyrics=text=>String(text??'').replace(/\r\n?/g,'\n').replace(/
 export const emptyKey=()=>({note:'',mode:'',accidental:''});
 const adapt=s=>({...s,categoryId:s.category_id??s.categoryId??null,categoryIds:categoryIds(s),titleKey:norm(s.title),updatedAt:s.updated_at?Date.parse(s.updated_at):s.updatedAt,key:s.key||emptyKey(),chords:s.chords||[],number:s.number||'',remote:true});
 let syncing=null,lastSnapshot=null;
-export let syncState={ok:false,message:'Cargando biblioteca guardada…'};
+export let syncState={ok:false,loading:true,message:'Cargando biblioteca guardada…'};
 export function syncLibrary(){
  if(syncing)return syncing;
  syncing=(async()=>{

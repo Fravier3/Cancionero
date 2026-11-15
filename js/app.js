@@ -198,7 +198,7 @@ function visibleSongs() {
 
 function renderSubtitle() {
   const n = state.songs.length;
-  el.subtitle.textContent = n ? plural(n, 'canción', 'canciones') : 'Tu biblioteca está vacía';
+  el.subtitle.textContent = n ? plural(n, 'canción', 'canciones') : store.syncState.loading ? 'Cargando…' : 'Tu biblioteca está vacía';
 }
 
 function chipHtml(value, label, count) {
@@ -254,7 +254,7 @@ function renderList() {
   el.qClear.hidden = state.q === '';
   if (state.songs.length === 0) {
     el.info.textContent = '';
-    setListHtml(emptyHtml());
+    setListHtml(store.syncState.loading ? '' : emptyHtml());
     hydrateIcons(el.list);
     return;
   }

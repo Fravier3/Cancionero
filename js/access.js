@@ -8,6 +8,7 @@ export function initAccess({onChange,beforeChange=async()=>true}){
  const pin=document.querySelector('#mode-pin'),pinField=document.querySelector('#mode-pin-field'),method=document.querySelector('#mode-method');
  const error=document.querySelector('#mode-error'),submit=document.querySelector('#mode-submit');
  let usePassword=false;
+ let firstVisit=readStorage(KEY)===null;
  function label(){button.textContent=isEditor()?'Editor':'Visor';button.setAttribute('aria-label','Cambiar modo de acceso: '+button.textContent);}
  function isEditor(){const s=getSession();return role==='editor'&&Boolean(s)&&Date.parse(s.expiresAt)>Date.now();}
  function renderCredentials(focus=false){
@@ -31,7 +32,18 @@ export function initAccess({onChange,beforeChange=async()=>true}){
  function clearCredentials(){pin.value='';password.value='';error.textContent='';}
  function show(){select.value=isEditor()?'editor':'viewer';usePassword=false;clearCredentials();screen.hidden=false;app.inert=true;renderCredentials();}
  function hide(){screen.hidden=true;app.inert=false;app.hidden=false;label();clearCredentials();}
- select.addEventListener('change',()=>{usePassword=false;clearCredentials();renderCredentials();});
+ function enterFirstViewer(){
+  firstVisit=false;
+  hide();
+  writeStorage(KEY,'viewer');
+  requestAnimationFrame(()=>setTimeout(()=>{
+   if(role==='viewer'&&screen.hidden)onChange?.('viewer');
+  },0));
+ }
+ select.addEventListener('change',()=>{
+  if(firstVisit&&select.value==='viewer'){enterFirstViewer();return;}
+  usePassword=false;clearCredentials();renderCredentials();
+ });
  method.addEventListener('click',()=>{usePassword=!usePassword;clearCredentials();renderCredentials(true);});
  pin.addEventListener('input',()=>{pin.value=pin.value.replace(/[^0-9]/g,'').slice(0,4);});
  document.querySelector('#mode-form').addEventListener('submit',async e=>{
@@ -51,7 +63,7 @@ export function initAccess({onChange,beforeChange=async()=>true}){
      clearSession().catch(()=>{});
     }
    }
-   writeStorage(KEY,role);hide();await onChange?.(role);
+   firstVisit=false;writeStorage(KEY,role);hide();await onChange?.(role);
   }catch(e){error.textContent=e.message;}
   finally{pin.value='';password.value='';submit.textContent='Entrar';submit.disabled=false;method.disabled=false;select.disabled=false;}
  });
@@ -74,6 +86,10 @@ export function initAccess({onChange,beforeChange=async()=>true}){
    }
   }else if(saved==='viewer'){
    hide();onChange?.(role);
+  }else if(select.value==='viewer'){
+   enterFirstViewer();
+  }else if(select.value==='editor'){
+   renderCredentials();
   }else{
    show();select.value='';renderCredentials();
   }
