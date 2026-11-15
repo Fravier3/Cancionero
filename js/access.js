@@ -6,9 +6,9 @@ export function initAccess({onChange,beforeChange=async()=>true}){
  let role='viewer';const screen=document.querySelector('#mode-screen'),select=document.querySelector('#mode-select'),app=document.querySelector('#app'),button=document.querySelector('#btn-mode');
  const password=document.querySelector('#mode-password'),passwordField=document.querySelector('#mode-password-field');
  const pin=document.querySelector('#mode-pin'),pinField=document.querySelector('#mode-pin-field'),method=document.querySelector('#mode-method');
- const error=document.querySelector('#mode-error'),submit=document.querySelector('#mode-submit');
+ const error=document.querySelector('#mode-error'),submit=document.querySelector('#mode-submit'),cancel=document.querySelector('#mode-cancel');
  let usePassword=false;
- let firstVisit=readStorage(KEY)===null;
+ let manuallyOpened=false;
  function label(){button.textContent=isEditor()?'Editor':'Visor';button.setAttribute('aria-label','Cambiar modo de acceso: '+button.textContent);}
  function isEditor(){const s=getSession();return role==='editor'&&Boolean(s)&&Date.parse(s.expiresAt)>Date.now();}
  function renderCredentials(focus=false){
@@ -30,19 +30,13 @@ export function initAccess({onChange,beforeChange=async()=>true}){
  }
  function verifySession(){if(isEditor())request('verify',{},8000).catch(()=>{});}
  function clearCredentials(){pin.value='';password.value='';error.textContent='';}
- function show(){select.value=isEditor()?'editor':'viewer';usePassword=false;clearCredentials();screen.hidden=false;app.inert=true;renderCredentials();}
- function hide(){screen.hidden=true;app.inert=false;app.hidden=false;label();clearCredentials();}
- function enterFirstViewer(){
-  firstVisit=false;
+ function show(){manuallyOpened=true;select.value='editor';usePassword=false;clearCredentials();screen.hidden=false;app.inert=true;renderCredentials();}
+ function hide(){screen.hidden=true;app.inert=false;label();clearCredentials();}
+ select.addEventListener('change',()=>{usePassword=false;clearCredentials();renderCredentials();});
+ cancel.addEventListener('click',()=>{
+  if(submit.disabled)return;
   hide();
-  writeStorage(KEY,'viewer');
-  requestAnimationFrame(()=>setTimeout(()=>{
-   if(role==='viewer'&&screen.hidden)onChange?.('viewer');
-  },0));
- }
- select.addEventListener('change',()=>{
-  if(firstVisit&&select.value==='viewer'){enterFirstViewer();return;}
-  usePassword=false;clearCredentials();renderCredentials();
+  button.focus();
  });
  method.addEventListener('click',()=>{usePassword=!usePassword;clearCredentials();renderCredentials(true);});
  pin.addEventListener('input',()=>{pin.value=pin.value.replace(/[^0-9]/g,'').slice(0,4);});
@@ -65,7 +59,7 @@ export function initAccess({onChange,beforeChange=async()=>true}){
      clearSession().catch(()=>{});
     }
    }
-   firstVisit=false;writeStorage(KEY,role);hide();await onChange?.(role);
+   writeStorage(KEY,role);hide();await onChange?.(role);
   }catch(e){error.textContent=e.message;}
   finally{pin.value='';password.value='';submit.textContent='Entrar';submit.disabled=false;method.disabled=false;select.disabled=false;}
  });
@@ -76,25 +70,13 @@ export function initAccess({onChange,beforeChange=async()=>true}){
   }
  });
  const ready=Promise.resolve().then(async()=>{
-  const saved=readStorage(KEY);
-  if(saved==='editor'){
-   submit.disabled=true;
-   const session=await loadSession();
-   submit.disabled=false;
-   if(session){
-    role='editor';hide();onChange?.(role);verifySession();
-   }else{
-    show();select.value='editor';renderCredentials();
-   }
-  }else if(saved==='viewer'){
-   hide();onChange?.(role);
-  }else if(select.value==='viewer'){
-   enterFirstViewer();
-  }else if(select.value==='editor'){
-   renderCredentials();
-  }else{
-   show();select.value='';renderCredentials();
-  }
+  if(readStorage(KEY)!=='editor')return;
+  const session=await loadSession(()=>!manuallyOpened);
+  if(!session)return;
+  role='editor';
+  label();
+  onChange?.(role,{restored:true});
+  verifySession();
  });
  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')verifySession();});
  return {isEditor,getRole:()=>role,isChoosing:()=>!screen.hidden,show:async()=>{if(await beforeChange())show();},ready};

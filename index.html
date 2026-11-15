@@ -19,7 +19,7 @@
   <script>window.APP_VERSION = '2.0.0';</script>
 </head>
 <body>
-  <section id="mode-screen" class="mode-screen" aria-labelledby="mode-title">
+  <section id="mode-screen" class="mode-screen" aria-labelledby="mode-title" hidden>
     <form id="mode-form" class="mode-card">
       <span class="brand-mark"><img src="icons/cancionero-192.png" width="60" height="60" alt=""></span>
       <span class="eyebrow">BIENVENIDO A CANCIONERO</span>
@@ -36,9 +36,10 @@
       <p id="mode-error" role="alert" class="error-note"></p>
       <p class="note">Editor: acceso protegido. Visor: canciones, misa y evangelio sin contraseña.</p>
       <button id="mode-submit" class="btn primary big block" type="submit">Entrar</button>
+      <button id="mode-cancel" class="btn ghost block" type="button">Cancelar</button>
     </form>
   </section>
-  <div id="app" hidden>
+  <div id="app">
     <header class="topbar">
       <div class="brand">
         <span class="brand-mark"><img src="icons/cancionero-192.png" width="42" height="42" alt=""></span>
@@ -47,7 +48,7 @@
           <p id="subtitle">Cargando…</p>
         </div>
       </div>
-      <div class="header-tools"><button id="btn-mode" class="mode-pill" type="button">Modo</button>
+      <div class="header-tools"><button id="btn-mode" class="mode-pill" type="button" aria-label="Cambiar modo de acceso: Visor">Visor</button>
       <button id="btn-settings" class="icon-btn" type="button" aria-label="Configuración" data-icon="settings-2"></button></div>
     </header>
 
@@ -156,7 +157,7 @@
     </main>
 
     <nav class="tabbar" aria-label="Secciones">
-      <button type="button" class="tab" data-tab="library" data-icon="list-music"><span>Canciones</span></button>
+      <button type="button" class="tab" data-tab="library" aria-current="page" data-icon="list-music"><span>Canciones</span></button>
       <button type="button" class="tab" data-tab="add" hidden data-icon="plus"><span>Añadir</span></button>
       <button type="button" class="tab" data-tab="mass" data-icon="book-open"><span>Misa</span></button>
       <button type="button" class="tab" data-tab="gospel" data-icon="book-open"><span>Evangelio</span></button>

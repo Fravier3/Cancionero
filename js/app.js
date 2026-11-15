@@ -1094,6 +1094,7 @@ async function init() {
   hydrateIcons(document);
   initRecognition();
   bindEvents();
+  document.body.dataset.mode='viewer';
   try {
     await refresh();
   } catch {
@@ -1129,7 +1130,7 @@ function applyAccess(){
 }
 const mass = initMass({ getSongs: () => state.localSongs, categoryName: catName, closeSong: closeReader, syncSongs: store.syncLibrary, openSong: (song, refresh)=>{gospel.resetReader();displaySong(song, true, refresh);}, canEdit:()=>access.isEditor() });
 const gospel = initGospel({canEdit:()=>access.isEditor(),openReading:displaySong,closeOtherReaders:()=>mass.resetReader()});
-const access = initAccess({onChange:()=>{applyAccess();closeReader();},beforeChange:async()=>{
+const access = initAccess({onChange:(_role,{restored=false}={})=>{applyAccess();if(!restored)closeReader();},beforeChange:async()=>{
   if(state.editing&&isEditDirty())return confirmBox({title:'¿Cambiar el modo?',message:'Guarda tus cambios antes de cambiar el modo.',okLabel:'Continuar'});
   if(mass.isEditing())return confirmBox({title:'¿Cambiar el modo?',message:'Hay una misa en edición. Guarda sus cambios antes de cambiar el modo.',okLabel:'Continuar'});
   return true;

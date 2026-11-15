@@ -2,9 +2,9 @@
 const authDB=new window.Dexie('cancionero-auth');authDB.version(1).stores({session:'id'});
 let current=null,persisted=false;
 
-export async function loadSession(){
+export async function loadSession(shouldRestore=()=>true){
  const saved=await authDB.session.get('editor').catch(()=>null);
- if(!saved?.token||!(Date.parse(saved.expiresAt)>Date.now()))return null;
+ if(!shouldRestore()||!saved?.token||!(Date.parse(saved.expiresAt)>Date.now()))return null;
  current=saved;
  persisted=true;
  return current;

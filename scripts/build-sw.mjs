@@ -15,7 +15,23 @@ self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addA
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('cancionero-v')&&k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
 self.addEventListener('message',e=>{if(e.data==='SKIP_WAITING')self.skipWaiting()});
 self.addEventListener('fetch',e=>{const r=e.request,u=new URL(r.url);if(r.method!=='GET'||u.origin!==self.location.origin||!u.pathname.startsWith(new URL(self.registration.scope).pathname))return;
-if(r.mode==='navigate'){e.respondWith(fetch(r,{cache:'no-store'}).catch(()=>caches.open(CACHE).then(c=>c.match('index.html'))));return;}
+if(r.mode==='navigate'){
+ const cached=caches.open(CACHE).then(c=>c.match('index.html')).catch(()=>undefined);
+ const network=fetch(r,{cache:'no-store'}).then(async res=>res.ok?res:(await cached)||res).catch(async error=>{
+  const fallback=await cached;
+  if(fallback)return fallback;
+  throw error;
+ });
+ e.respondWith((async()=>{
+  let timer;
+  try{
+   const deadline=new Promise(resolve=>{timer=setTimeout(resolve,700);});
+   const fallback=deadline.then(async()=>(await cached)||network);
+   return await Promise.race([network,fallback]);
+  }finally{clearTimeout(timer);}
+ })());
+ return;
+}
 if(u.pathname.endsWith('version.json')){e.respondWith(fetch(r,{cache:'no-store'}));return;}
 e.respondWith(caches.open(CACHE).then(async c=>(await c.match(r))||fetch(r)));});`);
 console.log(`Version ${version}; ${assets.length} public assets; no backend, tests, sources or secrets in dist.`);
