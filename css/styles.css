@@ -1196,6 +1196,7 @@ html, body, #app, .topbar, .tabbar { background: #fff; color-scheme: only light;
 #view-add .editor-head h2 {font-size:21px;}#view-add .scan-hero {padding-top:0;}
 .sunday-label {text-transform:capitalize;font-weight:650;}
 .readings-status {color:var(--muted);font-size:13px;margin-bottom:14px;min-height:20px;}
+[data-psalm-edit] {margin-block-end:16px;}
 .reading-cards {display:grid;gap:12px;}
 .reading-card {width:100%;display:flex;gap:14px;align-items:center;text-align:left;border:1px solid var(--line);border-radius:16px;padding:18px 14px;background:white;color:var(--text);cursor:pointer;}
 .reading-number {width:32px;height:32px;display:grid;place-items:center;border-radius:50%;background:#eeeefa;color:var(--primary);font-weight:750;flex:none;}
