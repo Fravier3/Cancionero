@@ -18,10 +18,20 @@ export function initAccess({onChange,beforeChange=async()=>true}){
   method.textContent=usePassword?'Usar PIN':'Usar contraseña';
   if(focus&&editor)(usePassword?password:pin).focus();
  }
+ async function request(action,data,timeout=12000){
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),timeout);
+  try{return await call(action,data,{signal:controller.signal});}
+  catch(error){
+   if(controller.signal.aborted)throw new Error('El servidor está tardando en responder. Intenta de nuevo.');
+   throw error;
+  }finally{clearTimeout(timer);}
+ }
+ function verifySession(){if(isEditor())request('verify',{},8000).catch(()=>{});}
  function clearCredentials(){pin.value='';password.value='';error.textContent='';}
- function show(){select.value=isEditor()?'editor':'viewer';usePassword=false;clearCredentials();screen.hidden=false;app.inert=true;renderCredentials(true);}
+ function show(){select.value=isEditor()?'editor':'viewer';usePassword=false;clearCredentials();screen.hidden=false;app.inert=true;renderCredentials();}
  function hide(){screen.hidden=true;app.inert=false;app.hidden=false;label();clearCredentials();}
- select.addEventListener('change',()=>{usePassword=false;clearCredentials();renderCredentials(true);});
+ select.addEventListener('change',()=>{usePassword=false;clearCredentials();renderCredentials();});
  method.addEventListener('click',()=>{usePassword=!usePassword;clearCredentials();renderCredentials(true);});
  pin.addEventListener('input',()=>{pin.value=pin.value.replace(/[^0-9]/g,'').slice(0,4);});
  document.querySelector('#mode-form').addEventListener('submit',async e=>{
@@ -31,19 +41,43 @@ export function initAccess({onChange,beforeChange=async()=>true}){
    if(select.value==='editor'){
     if(usePassword&&!password.value)throw new Error('Introduce la contraseña de Editor.');
     if(!usePassword&&!/^[0-9]{4}$/.test(pin.value))throw new Error('Introduce el PIN de 4 dígitos.');
-    const result=await call('login',{password:usePassword?password.value:'pin:'+pin.value});
+    submit.textContent='Verificando…';
+    const result=await request('login',{password:usePassword?password.value:'pin:'+pin.value});
     await setSession(result);role='editor';
-   }else{if(getSession())await call('logout');await clearSession();role='viewer';}
+   }else{
+    role='viewer';
+    if(getSession()){
+     request('logout',{},8000).catch(()=>{});
+     clearSession().catch(()=>{});
+    }
+   }
    writeStorage(KEY,role);hide();await onChange?.(role);
   }catch(e){error.textContent=e.message;}
-  finally{pin.value='';password.value='';submit.disabled=false;method.disabled=false;select.disabled=false;}
+  finally{pin.value='';password.value='';submit.textContent='Entrar';submit.disabled=false;method.disabled=false;select.disabled=false;}
  });
  button.addEventListener('click',async()=>{if(await beforeChange())show();});
- window.addEventListener('cancionero:auth',()=>{if(!getSession()){role='viewer';label();onChange?.(role);}});
- const ready=(async()=>{await loadSession();const saved=readStorage(KEY);if(saved==='editor'&&getSession()){
-  try{await call('verify');role='editor';}catch(error){if(error.status===401){await clearSession();role='viewer';}else{role='editor';}}
-  hide();await onChange?.(role);
- }else if(saved==='viewer'){hide();await onChange?.('viewer');}else{show();select.value='';renderCredentials();}})();
- document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&getSession())call('verify').catch(()=>{});});
+ window.addEventListener('cancionero:auth',()=>{
+  if(role==='editor'&&!getSession()){
+   role='viewer';writeStorage(KEY,role);label();onChange?.(role);
+  }
+ });
+ const ready=Promise.resolve().then(async()=>{
+  const saved=readStorage(KEY);
+  if(saved==='editor'){
+   submit.disabled=true;
+   const session=await loadSession();
+   submit.disabled=false;
+   if(session){
+    role='editor';hide();onChange?.(role);verifySession();
+   }else{
+    show();select.value='editor';renderCredentials();
+   }
+  }else if(saved==='viewer'){
+   hide();onChange?.(role);
+  }else{
+   show();select.value='';renderCredentials();
+  }
+ });
+ document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')verifySession();});
  return {isEditor,getRole:()=>role,isChoosing:()=>!screen.hidden,show:async()=>{if(await beforeChange())show();},ready};
 }

@@ -144,9 +144,13 @@ async function refresh() {
   const syncStatus = $('#sync-status');
   const message = store.syncState.ok ? '' : store.syncState.message;
   if (syncStatus.textContent !== message) syncStatus.textContent = message;
-  const pending=await store.pendingLocal();
-  const banner=$('#migration-banner');banner.hidden=!pending.length||!access.isEditor();
-  banner.innerHTML=`<strong>${pending.length} canciones originales en este teléfono</strong><p>Están a salvo. Migra una copia a la biblioteca compartida para verlas en los demás dispositivos.</p><button type="button" id="migration-start" class="btn primary">Migrar canciones de este teléfono</button>`;
+  renderMigrationBanner();
+}
+
+function renderMigrationBanner(){
+  const pending=state.localSongs.filter(song=>song.legacy).length;
+  const banner=$('#migration-banner');banner.hidden=!pending||!access.isEditor();
+  banner.innerHTML=`<strong>${pending} canciones originales en este teléfono</strong><p>Están a salvo. Migra una copia a la biblioteca compartida para verlas en los demás dispositivos.</p><button type="button" id="migration-start" class="btn primary">Migrar canciones de este teléfono</button>`;
 }
 
 function mergeSongs(){
@@ -1098,10 +1102,8 @@ async function init() {
       <p>Tu navegador bloqueó el almacenamiento local. Sal del modo privado y vuelve a abrir la app.</p></div>`;
     return;
   }
-  renderLibrary();
   renderCatSelect();
   updateDraftDot();
-  applyView();
   applyAccess();
   store.syncLibrary();syncSharedSongs();
   initPWA({
@@ -1120,7 +1122,10 @@ function applyAccess(){
   $('[data-tab="add"]').hidden=!editor;$('#btn-settings').hidden=false;
   document.body.dataset.mode=editor?'editor':'viewer';
   if(!editor && state.view==='add'){state.editing=false;drafts.edit=null;captureQueue=[];captureTotal=0;captureIndex=0;if(drafts.fresh.transient)drafts.fresh=emptyDraft();state.view='library';}
-  gospel.updateAccess();mass.setCanEdit(editor);if(!editor){clearPhoto();closeSheet();}refresh().then(()=>{renderLibrary();applyView({resetScroll:false});}).catch(()=>{});
+  gospel.updateAccess();mass.setCanEdit(editor);if(!editor){clearPhoto();closeSheet();}
+  renderMigrationBanner();
+  renderLibrary();
+  applyView({resetScroll:false});
 }
 const mass = initMass({ getSongs: () => state.localSongs, categoryName: catName, closeSong: closeReader, syncSongs: store.syncLibrary, openSong: (song, refresh)=>{gospel.resetReader();displaySong(song, true, refresh);}, canEdit:()=>access.isEditor() });
 const gospel = initGospel({canEdit:()=>access.isEditor(),openReading:displaySong,closeOtherReaders:()=>mass.resetReader()});
