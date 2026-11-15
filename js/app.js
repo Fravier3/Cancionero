@@ -141,7 +141,9 @@ async function refresh() {
   state.localSongs = songs;
   mergeSongs();
   if (!['all','none'].includes(state.cat) && !state.catById.has(state.cat)) state.cat = 'all';
-  $('#sync-status').textContent=store.syncState.message;
+  const syncStatus = $('#sync-status');
+  const message = store.syncState.ok ? '' : store.syncState.message;
+  if (syncStatus.textContent !== message) syncStatus.textContent = message;
   const pending=await store.pendingLocal();
   const banner=$('#migration-banner');banner.hidden=!pending.length||!access.isEditor();
   banner.innerHTML=`<strong>${pending.length} canciones originales en este teléfono</strong><p>Están a salvo. Migra una copia a la biblioteca compartida para verlas en los demás dispositivos.</p><button type="button" id="migration-start" class="btn primary">Migrar canciones de este teléfono</button>`;
@@ -285,10 +287,12 @@ function renderList() {
 
 function renderLibrary() {
   const position=state.view==='library'?(el.reader.hidden?captureLibraryPosition():readerLibraryPosition):null,flash=Boolean(state.flashId);
+  const previousList = lastListHtml;
+  const previousChips = lastChipsHtml;
   renderSubtitle();
   renderChips();
   renderList();
-  if(!flash)restoreLibraryPosition(position);
+  if (!flash && (lastListHtml !== previousList || lastChipsHtml !== previousChips)) restoreLibraryPosition(position);
 }
 
 /* ============================================================
@@ -1096,11 +1100,13 @@ async function init() {
   applyAccess();
   store.syncLibrary();syncSharedSongs();
   initPWA({
-    canReload: () => !audioBusy() && !savingMassKey && !access.isChoosing() && !mass.isEditing() && !ocrRunning && !isEditDirty() && !hasContent(drafts.fresh),
-    onBeforeReload: () => {
-      persistDraft.flush();
-      toast('Actualizando la app…');
+    canReload: () => {
+      const searching = state.view === 'library' && (state.q.trim() !== '' || document.activeElement === el.q);
+      return document.visibilityState === 'visible' && !searching && el.reader.hidden
+        && !audioBusy() && !savingMassKey && !access.isChoosing() && !mass.isEditing()
+        && !ocrRunning && !isEditDirty() && !hasContent(drafts.fresh);
     },
+    onBeforeReload: () => persistDraft.flush(),
   });
 }
 

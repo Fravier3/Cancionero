@@ -11,7 +11,9 @@ export function initPWA({ onBeforeReload, canReload } = {}) {
   let pendingReload = false;
   const tryReload = () => {
     if (!pendingReload || reloading || canReload?.() === false) return;
-    reloading = true; onBeforeReload?.(); setTimeout(() => location.reload(), 700);
+    reloading = true;
+    onBeforeReload?.();
+    location.reload();
   };
   setInterval(tryReload, 15000);
   navigator.serviceWorker.addEventListener('controllerchange', () => {
