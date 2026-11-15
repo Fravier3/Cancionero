@@ -7,11 +7,18 @@ Deno.serve(async req=>{
    const date=input.data?.date;if(typeof date!=='string'||!/^20\d{2}-\d{2}-\d{2}$/.test(date)||Number.isNaN(Date.parse(date)))throw new ApiError('Fecha inválida.');
    const code=date.slice(5,7)+date.slice(8,10)+date.slice(2,4),url=`https://bible.usccb.org/es/bible/lecturas/${code}.cfm`;
    const response=await fetch(url,{signal:AbortSignal.timeout(15000)});if(!response.ok)throw new ApiError('No se pudo consultar el salmo.',502);
-   const html=await response.text();const part=html.split(/<h3[^>]*>\s*Salmo Responsorial\s*<\/h3>/i)[1]?.split(/<h3[\s>]/i)[0];
-   const content=part?.match(/<div class="content-body">([\s\S]*?)<\/div>/i)?.[1];
-   const reference=part?.match(/<div class="address">([\s\S]*?)<\/div>/i)?.[1]||'';
-   if(!content||!content.includes('R.'))throw new ApiError('La fuente no incluyó la respuesta del salmo.',502);
-   return reply(req,{date,html:content,reference,url});
+   const html=await response.text();
+   const sections=html.split(/<h3[^>]*>/i).slice(1);
+   const headings=['Primera lectura','Salmo responsorial','Segunda lectura','Evangelio'];
+   const readings=headings.flatMap(label=>{
+    const section=sections.find(part=>part.split(/<\/h3>/i,1)[0].trim().toLowerCase()===label.toLowerCase());
+    const content=section?.match(/<div class="content-body">([\s\S]*?)<\/div>/i)?.[1];
+    const reference=section?.match(/<div class="address">([\s\S]*?)<\/div>/i)?.[1]||'';
+    return content?[{label,content,reference}]:[];
+   });
+   const psalm=readings.find(reading=>reading.label==='Salmo responsorial');
+   if(!readings.length)throw new ApiError('No se encontraron las lecturas de esta fecha.',502);
+   return reply(req,{date,html:psalm?.content,reference:psalm?.reference,url,readings});
   }
   if(action==='login'){
    if(typeof input.password!=='string'||input.password.length>128)throw new ApiError('Contraseña inválida.');
