@@ -155,16 +155,21 @@ function mergeSongs(){
   const seen=new Set();state.songs=[...state.localSongs,...state.sharedSongs.filter(s=>!ids.has(s.songId)&&!unique.has(norm(s.title)+'|'+norm(s.lyrics)))].filter(s=>{const key=norm(s.title)+'|'+norm(s.lyrics);if(seen.has(key))return false;seen.add(key);return true;}).map(s=>({...s,_t:norm(s.title),_l:norm(s.lyrics)}));
   state.songs.sort((a,b)=>a._t.localeCompare(b._t,'es'));
 }
-let sharedLoading=false;
+let sharedLoading=false,lastSharedSnapshot=null;
 async function syncSharedSongs(){
   if(sharedLoading)return;sharedLoading=true;
   const date=sundayFor();
   try{
     let record;
-    try{record=await fetchMass(date);if(record)await store.db.masses.put({...record,updatedAt:Date.now()}).catch(()=>{});}
+    let fetched=false;
+    try{record=await fetchMass(date);fetched=true;}
     catch{const saved=await store.db.masses.get(date);record=saved?.revision?saved:null;}
     if(date!==sundayFor())return;
-    state.sharedSongs=(record?.entries||[]).filter(s=>s.kind!=='description').map((s,i)=>({...s,id:`shared:${date}:${i}`,shared:true}));
+    const snapshot=JSON.stringify([date,record?.revision,record?.deleted_at,record?.entries]);
+    if(snapshot===lastSharedSnapshot)return;
+    if(fetched&&record)await store.db.masses.put(record).catch(()=>{});
+    lastSharedSnapshot=snapshot;
+    state.sharedSongs=(record?.deleted_at?[]:record?.entries||[]).filter(s=>s.kind!=='description').map((s,i)=>({...s,id:`shared:${date}:${i}`,shared:true}));
     mergeSongs();renderLibrary();
   }catch{/* existing local songs remain readable */}
   finally{sharedLoading=false;}

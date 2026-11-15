@@ -30,6 +30,8 @@
         <option value="" disabled>Selecciona una opción</option>
         <option value="editor">Editor</option><option value="viewer">Visor</option>
       </select>
+      <div id="mode-pin-field" class="field" hidden><label for="mode-pin">PIN de Editor</label><input id="mode-pin" type="password" inputmode="numeric" autocomplete="off" maxlength="4" placeholder="4 dígitos"></div>
+      <button id="mode-method" class="btn secondary" type="button" hidden>Usar contraseña</button>
       <div id="mode-password-field" class="field" hidden><label for="mode-password">Contraseña de Editor</label><input id="mode-password" type="password" autocomplete="current-password" maxlength="128" placeholder="Contraseña compartida"></div>
       <p id="mode-error" role="alert" class="error-note"></p>
       <p class="note">Editor: acceso protegido. Visor: canciones, misa y evangelio sin contraseña.</p>

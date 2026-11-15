@@ -11,18 +11,24 @@ db.on('populate',tx=>tx.table('categories').bulkAdd(DEFAULT_CATEGORIES.map((name
 export const cleanLyrics=text=>String(text??'').replace(/\r\n?/g,'\n').replace(/^\n+|\n+$/g,'');
 export const emptyKey=()=>({note:'',mode:'',accidental:''});
 const adapt=s=>({...s,categoryId:s.category_id??s.categoryId??null,categoryIds:categoryIds(s),titleKey:norm(s.title),updatedAt:s.updated_at?Date.parse(s.updated_at):s.updatedAt,key:s.key||emptyKey(),chords:s.chords||[],number:s.number||'',remote:true});
-let syncing=null;
+let syncing=null,lastSnapshot=null;
 export let syncState={ok:false,message:'Cargando biblioteca guardada…'};
 export function syncLibrary(){
  if(syncing)return syncing;
- syncing=(async()=>{try{
+ syncing=(async()=>{
+ let changed=false;const previousMessage=syncState.message;
+ try{
   const [songs,categories]=await Promise.all([publicRows('cancionero_songs'),publicRows('cancionero_categories')]);
-  await db.transaction('rw',db.cloudSongs,db.cloudCategories,db.meta,async()=>{await db.cloudSongs.clear();await db.cloudSongs.bulkPut(songs.map(adapt));await db.cloudCategories.clear();await db.cloudCategories.bulkPut(categories);await db.meta.put({id:'lastSync',at:Date.now(),count:songs.length});});
+  const snapshot=JSON.stringify([songs,categories]);
+  if(snapshot!==lastSnapshot){
+   await db.transaction('rw',db.cloudSongs,db.cloudCategories,db.meta,async()=>{await db.cloudSongs.clear();await db.cloudSongs.bulkPut(songs.map(adapt));await db.cloudCategories.clear();await db.cloudCategories.bulkPut(categories);await db.meta.put({id:'lastSync',at:Date.now(),count:songs.length});});
+   lastSnapshot=snapshot;changed=true;
+  }
   syncState={ok:true,message:`Biblioteca sincronizada · ${songs.length} canciones`};
  }catch{syncState={ok:false,message:'Sin conexión · mostrando la biblioteca guardada. Actualiza para reintentar.'};}
- finally{syncing=null;window.dispatchEvent(new Event('cancionero:sync'));}return syncState;})();return syncing;
+ finally{syncing=null;if(changed||previousMessage!==syncState.message)window.dispatchEvent(new Event('cancionero:sync'));}return syncState;})();return syncing;
 }
-async function syncAfterWrite(){if(syncing)await syncing;return syncLibrary();}
+async function syncAfterWrite(){if(syncing)await syncing;lastSnapshot=null;return syncLibrary();}
 export async function pendingLocal(){const [songs,map]=await Promise.all([db.songs.toArray(),db.migrationMap.toArray()]);const done=new Set(map.map(m=>m.localId));return songs.filter(s=>!done.has(s.id));}
 export async function listSongs(){const [cloud,local]=await Promise.all([db.cloudSongs.toArray(),pendingLocal()]);return [...cloud,...local.map(s=>({...adapt(s),remote:false,legacy:true}))];}
 export async function listCategories(){const [cloud,local,synced,pending]=await Promise.all([db.cloudCategories.toArray(),db.categories.toArray(),db.meta.get('lastSync'),pendingLocal()]);const names=new Set(cloud.map(c=>norm(c.name))),used=new Set(pending.map(s=>s.categoryId));return [...cloud,...local.filter(c=>(!synced||used.has(c.id))&&!names.has(norm(c.name))).map(c=>({...c,legacy:true}))].sort((a,b)=>(a.sort_order??a.order??100000)-(b.sort_order??b.order??100000)||a.name.localeCompare(b.name,'es'));}
