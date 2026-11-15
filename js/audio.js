@@ -7,6 +7,20 @@ let cleanup=()=>{},dirty=false;
 window.addEventListener('beforeunload',e=>{if(dirty){e.preventDefault();e.returnValue='';}});
 export const audioBusy=()=>dirty;
 export function closeAudio(){cleanup();cleanup=()=>{};dirty=false;}
+export function mountMassAudio(root, song, refresh) {
+ const url = audioUrl(song);
+ if (refresh && url && root.querySelector('details audio')?.getAttribute('src') === url) return;
+ closeAudio();
+ root.onclick = null;
+ root.innerHTML = url
+  ? `<details class="mass-reader-audio"><summary>Escuchar la canción</summary>${audioPlayer(song)}</details>`
+  : '';
+ if (!url) return;
+ const details = root.querySelector('details');
+ const player = details.querySelector('audio');
+ details.addEventListener('toggle', () => { if (!details.open) player.pause(); });
+ cleanup = () => player.pause();
+}
 export function mountAudio(root,song,{canEdit,onSaved,onMass}){
  closeAudio();if(!song?.id||song.legacy||song.kind==='description'){root.innerHTML='';return;}
  let blob=null,preview='',recorder,stream,timer,ticker,duration=0,active=true,busy=false;

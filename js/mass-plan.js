@@ -14,5 +14,5 @@ export function resolveMassSong(entry,songs){
   const matches=exact.length?exact:sameTitle.length?sameTitle:songs.filter(s=>searchText(s.lyrics)===searchText(entry.lyrics));
   if(matches.length===1)song=matches[0];
  }
- return song?{...entry,songId:String(song.id),title:song.title,lyrics:song.lyrics,key:song.key,chords:song.chords||[],number:song.number||''}:entry;
+ return song?{...entry,songId:String(song.id),title:song.title,lyrics:song.lyrics,key:song.key,chords:song.chords||[],number:song.number||'',audio_path:song.audio_path||''}:entry;
 }

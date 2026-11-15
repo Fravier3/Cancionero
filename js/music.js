@@ -1,5 +1,8 @@
 import {esc} from './util.js';
 export const blankKey=()=>({note:'',mode:'',accidental:''});
+export function keyFromChoice(value) {
+ return value ? {note:value.slice(0,-1),mode:value.slice(-1),accidental:''} : blankKey();
+}
 export function renderMusic(lyrics,chords=[],show=true,interactive=false){
  if(!interactive&&(!show||!chords.length))return esc(lyrics);
  return String(lyrics).split('\n').map((line,lineIndex)=>{
@@ -71,7 +74,7 @@ export function initMusicEditor({getDraft,onChanged}){
  }
  function renderPreview(){const d=getDraft();preview.innerHTML=renderMusic(d?.lyrics||'',d?.chords||[],true,true);updateTarget();}
  document.querySelector('#f-number').oninput=e=>{getDraft().number=e.target.value;onChanged();};
- document.querySelector('#f-key-note').onchange=e=>{const value=e.target.value;getDraft().key=value?{note:value.slice(0,-1),mode:value.slice(-1),accidental:''}:blankKey();onChanged();};
+ document.querySelector('#f-key-note').onchange=e=>{getDraft().key=keyFromChoice(e.target.value);onChanged();};
  function pick(lineNumber,wordNumber){
   const d=getDraft();line.value=String(lineNumber);word.value=String(wordNumber);
   active=(d.chords||[]).findIndex(c=>{const at=anchorWord(d.lyrics,c);return at?.line===lineNumber&&at.word===wordNumber;});

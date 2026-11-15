@@ -1266,3 +1266,9 @@ html,body,button,a,input,select,textarea,summary,.reader-lyrics{touch-action:pan
 #view-library{animation-name:library-in;}
 @keyframes library-in{from{opacity:0;}}
 .song-audio{margin-top:32px;padding:20px;border:1px solid #dbe4ed;border-radius:18px;background:#f4f7fb;color:#18283e;font-size:16px;line-height:1.5}.song-audio h3{margin:0 0 12px;font-size:19px}.song-audio audio,.mass-audio-result audio{display:block;width:100%;max-width:100%;margin:10px 0}.audio-tools{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.audio-badge{font-size:11px;color:#235ca4;border:1px solid #b7cdeb;border-radius:6px;padding:2px 5px;white-space:nowrap}.mass-audio-result{border-bottom:1px solid #e3e8ef;padding-bottom:8px}.mass-audio-result .mass-pick-result{width:100%}.modal label{display:block;margin:12px 0}.modal label input,.modal label select{display:block;width:100%;min-height:44px;font-size:16px;margin-top:6px}.song-audio button{min-height:44px}
+
+#rd-key:empty {display:none;}
+#rd-key-choice {max-width:48%;min-height:44px;padding:0 8px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--text);font:inherit;font-size:16px;}
+.mass-reader-audio {margin-top:20px;}
+.mass-reader-audio summary {width:fit-content;min-height:44px;padding:12px 10px;border:1px solid var(--line);border-radius:9px;color:var(--primary);font-size:14px;font-weight:650;cursor:pointer;}
+.mass-reader-audio audio {display:block;width:min(100%, 320px);margin-top:8px;}

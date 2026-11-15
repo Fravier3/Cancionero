@@ -1,4 +1,4 @@
-import {mountAudio,closeAudio,audioBusy} from './audio.js';
+import {mountAudio,mountMassAudio,closeAudio,audioBusy} from './audio.js';
 import {addToMass} from './add-to-mass.js';
 // Mi Cancionero — lógica principal de la interfaz.
 import {initZoomGuard} from './zoom.js';
@@ -17,7 +17,7 @@ import { initAccess } from './access.js';
 import { initGospel } from './gospel.js';
 import { fetchMass } from './shared-mass.js';
 import { sundayFor } from './dates.js';
-import {renderMusic,rebaseChords,keyLabel,blankKey,initMusicEditor} from './music.js';
+import {renderMusic,rebaseChords,keyLabel,keyFromChoice,CHORD_CHOICES,blankKey,initMusicEditor} from './music.js';
 import {initRecognition,recognizePhoto,clearPhoto,getPhoto,applyEnginePreference} from './recognition.js';
 import {call} from './api.js';
 import {clearSession} from './session.js';
@@ -661,20 +661,74 @@ function openReader(id) {
   displaySong(song);
 }
 
-function displaySong(song) {
+let savingMassKey = false;
+
+function renderMassKey(song, librarySong) {
+  const caption = $('#rd-key');
+  const select = $('#rd-key-choice');
+  const editable = access.isEditor() && Boolean(librarySong?.remote);
+  const current = keyLabel(song.key);
+  caption.textContent = editable ? '' : current;
+  select.hidden = !editable;
+  select.disabled = savingMassKey;
+  if (!editable) return;
+  const choices = current && !CHORD_CHOICES.includes(current) ? [current, ...CHORD_CHOICES] : CHORD_CHOICES;
+  select.replaceChildren(
+    new Option(current ? 'Sin tonalidad' : 'Añadir tono', ''),
+    ...choices.map(choice => new Option(choice, choice))
+  );
+  select.value = current;
+}
+
+async function saveMassKey() {
+  const select = $('#rd-key-choice');
+  const readerSong = state.readerSong;
+  const song = state.localSongs.find(s => String(s.id) === readerSong?.songId);
+  if (el.reader.hidden || select.hidden || savingMassKey || !access.isEditor() || !song?.remote) return;
+  const value = select.value;
+  if (value && !CHORD_CHOICES.includes(value)) {
+    select.value = keyLabel(readerSong.key);
+    return;
+  }
+  savingMassKey = true;
+  select.disabled = true;
+  try {
+    await store.saveSong({...song, key:keyFromChoice(value)});
+    await refresh();
+    mass.refreshSongs();
+    toast('Tonalidad guardada');
+  } catch (error) {
+    if (state.readerSong === readerSong) select.value = keyLabel(readerSong.key);
+    toast(error.message || 'No se pudo guardar la tonalidad.', 5000);
+    if (error.status === 409) await store.syncLibrary();
+  } finally {
+    savingMassKey = false;
+    select.disabled = false;
+  }
+}
+
+function displaySong(song, fromMass = false, refresh = false) {
   if(el.reader.hidden&&state.view==='library'){readerLibraryPosition=captureLibraryPosition();libraryPosition=readerLibraryPosition;}
   state.readerId = song.id ?? null;
-  const editable = access.isEditor() && Boolean(song.id) && !song.shared;
+  const editable = !fromMass && access.isEditor() && Boolean(song.id) && !song.shared;
   $('#rd-edit').hidden = !editable; $('#rd-delete').hidden = !editable;
   el.rdTitle.textContent = (song.number?song.number+' · ':'')+song.title;
   el.rdCat.textContent = catName(song);
   state.readerSong=song;
   renderReaderMusic();
-  mountAudio(document.querySelector('#rd-audio'),state.songs.find(s=>String(s.id)===String(song.songId||song.id))||song,{canEdit:()=>access.isEditor(),onSaved:async()=>{await store.syncLibrary();await refresh();},onMass:s=>addToMass(s,{canEdit:()=>access.isEditor(),categoryName:catName,categoryNames:song=>categoryLabels({...song,categoryIds:songCategories(song)},state.cats)})});
-  $('#rd-key').textContent=keyLabel(song.key);
+  const audioRoot = $('#rd-audio');
+  const librarySong = state.localSongs.find(s => String(s.id) === String(song.songId || song.id));
+  if (fromMass) {
+    renderMassKey(song, librarySong);
+    mountMassAudio(audioRoot, librarySong || song, refresh);
+  } else {
+    $('#rd-key-choice').hidden = true;
+    $('#rd-key').textContent = keyLabel(song.key);
+    mountAudio(audioRoot, librarySong || song, {canEdit:()=>access.isEditor(),onSaved:async()=>{await store.syncLibrary();await refresh();},onMass:s=>addToMass(s,{canEdit:()=>access.isEditor(),categoryName:catName,categoryNames:song=>categoryLabels({...song,categoryIds:songCategories(song)},state.cats)})});
+  }
   applyFontSize(currentFontSize());
   el.reader.hidden = false;
-  el.rdScroll.scrollTop = 0;
+  if (!refresh) el.rdScroll.scrollTop = 0;
   keepAwake();
   if (!history.state?.reader) history.pushState({ reader: true }, '');
 }
@@ -953,6 +1007,7 @@ function bindEvents() {
   $('#busy-cancel').addEventListener('click', () => el.busyCancelHandler?.());
 
   // Lectura
+  $('#rd-key-choice').addEventListener('change', saveMassKey);
   $('#rd-back').addEventListener('click', () => closeReader());
   el.rdSmaller.addEventListener('click', () => stepFont(-1));
   el.rdBigger.addEventListener('click', () => stepFont(1));
@@ -1039,7 +1094,7 @@ async function init() {
   applyAccess();
   store.syncLibrary();syncSharedSongs();
   initPWA({
-    canReload: () => !audioBusy() && !access.isChoosing() && !mass.isEditing() && !ocrRunning && !isEditDirty() && !hasContent(drafts.fresh),
+    canReload: () => !audioBusy() && !savingMassKey && !access.isChoosing() && !mass.isEditing() && !ocrRunning && !isEditDirty() && !hasContent(drafts.fresh),
     onBeforeReload: () => {
       persistDraft.flush();
       toast('Actualizando la app…');
@@ -1054,7 +1109,7 @@ function applyAccess(){
   if(!editor && state.view==='add'){state.editing=false;drafts.edit=null;captureQueue=[];captureTotal=0;captureIndex=0;if(drafts.fresh.transient)drafts.fresh=emptyDraft();state.view='library';}
   gospel.updateAccess();mass.setCanEdit(editor);if(!editor){clearPhoto();closeSheet();}refresh().then(()=>{renderLibrary();applyView({resetScroll:false});}).catch(()=>{});
 }
-const mass = initMass({ getSongs: () => state.songs.filter(s=>!s.shared), categoryName: catName, openSong: song=>{gospel.resetReader();displaySong(song);}, canEdit:()=>access.isEditor() });
+const mass = initMass({ getSongs: () => state.songs.filter(s=>!s.shared), categoryName: catName, openSong: (song, refresh)=>{gospel.resetReader();displaySong(song, true, refresh);}, canEdit:()=>access.isEditor() });
 const gospel = initGospel({canEdit:()=>access.isEditor(),openReading:displaySong,closeOtherReaders:()=>mass.resetReader()});
 const access = initAccess({onChange:()=>{applyAccess();closeReader();},beforeChange:async()=>{
   if(state.editing&&isEditDirty())return confirmBox({title:'¿Cambiar el modo?',message:'Guarda tus cambios antes de cambiar el modo.',okLabel:'Continuar'});
