@@ -11,9 +11,10 @@ export async function call(action,data={},options={}){
  if(!response.ok||result.error){if(response.status===401&&!options.public&&session&&getSession()===session&&action!=='login'&&action!=='logout')await clearSession();throw new RequestError(result.error||'No se pudo completar la operación.',response.status);}
  return result;
 }
-export async function publicRows(table){
+export async function publicRows(table,{versionsOnly=false}={}){
  if(!['cancionero_songs','cancionero_categories'].includes(table))throw new Error('Tabla no permitida');
+ const columns=versionsOnly?'id,revision,updated_at':'*';
  const rows=[];for(let offset=0;;offset+=500){const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),20000);let response;
- try{response=await fetch(`${URL_BASE}/rest/v1/${table}?select=*&order=id&limit=500&offset=${offset}`,{headers:{apikey:PUBLIC_KEY},cache:'no-store',signal:controller.signal});if(!response.ok)throw new Error('No se pudo sincronizar la biblioteca.');const page=await response.json();rows.push(...page);if(page.length<500)break;}finally{clearTimeout(timer);}}
+ try{response=await fetch(`${URL_BASE}/rest/v1/${table}?select=${columns}&order=id&limit=500&offset=${offset}`,{headers:{apikey:PUBLIC_KEY},cache:'no-store',signal:controller.signal});if(!response.ok)throw new Error('No se pudo sincronizar la biblioteca.');const page=await response.json();rows.push(...page);if(page.length<500)break;}finally{clearTimeout(timer);}}
  return rows;
 }

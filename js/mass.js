@@ -10,6 +10,7 @@ import {slotsFrom,planEntries,descriptionLyrics,resolveMassSong} from './mass-pl
 export function initMass({getSongs,categoryName,openSong,closeSong,syncSongs,canEdit=()=>false}){
  const root=document.querySelector('#view-mass'),nav=document.querySelector('#mass-reader-nav'),prev=document.querySelector('#mass-prev'),next=document.querySelector('#mass-next');
  let autoDate=sundayFor();
+ let knownDate=null,knownRecord;
  let date=autoDate,renderedDate=null,entries=[],revision=null,published=false,online=false,editing=false,busy=false,generation=0,message='',slots=[],extras=[],reading=[],position=0,readingDate='',readingRevision=null;
  function render(){renderedDate=date;root.innerHTML=`<div class="mass-heading"><h2>${editing?'Organizar misa':'Misa del domingo'}</h2><p>Un mismo repertorio para todos, en el mismo orden.</p></div><div class="mass-date"><button class="icon-btn" data-act="prev" aria-label="Domingo anterior">‹</button><div><label for="mass-date">${esc(sundayLabel(date))}</label><input id="mass-date" type="date" value="${date}" aria-label="Fecha de misa"></div><button class="icon-btn" data-act="next" aria-label="Domingo siguiente">›</button></div><p class="mass-sync" role="status">${esc(message)}</p>
  ${editing?`<p>Elige una canción o escribe una descripción para cada momento. Puedes dejar momentos vacíos.</p><div class="mass-slots">${slots.map((s,i)=>`<section class="mass-slot"><h3>${i+1}. ${esc(s.moment)}</h3><div class="mass-slot-mode"><label><input type="radio" name="moment-${i}" data-slot-mode="${i}" value="song" ${s.mode==='song'?'checked':''}> Canción</label><label><input type="radio" name="moment-${i}" data-slot-mode="${i}" value="description" ${s.mode==='description'?'checked':''}> Descripción</label></div>${s.mode==='description'?`<input data-slot-description="${i}" maxlength="500" value="${esc(s.description)}" placeholder="Por ejemplo: Abre mis labios señor" aria-label="Descripción de ${esc(s.moment)}">`:`<details class="mass-picker" data-picker="${i}"><summary>${esc(s.song?.title||'Seleccionar canción…')}</summary><div class="mass-picker-menu"><input type="search" data-slot-search="${i}" placeholder="Buscar por título o fragmento de la letra…" aria-label="Buscar canción para ${esc(s.moment)}" autocomplete="off"><div data-slot-results="${i}"></div></div></details>`}</section>`).join('')}</div>${extras.length?`<h3>Otras canciones conservadas de la misa anterior</h3>${extras.map((e,i)=>`<p>${esc(e.title)} <button class="btn ghost" data-extra="${i}">Quitar</button></p>`).join('')}`:''}<div class="mass-edit-tools"><button class="btn primary" data-act="save">Guardar misa para todos</button><button class="btn secondary" data-act="cancel">Cancelar</button></div>`:`<div class="mass-edit-tools">${canEdit()?`<button class="btn secondary" data-act="edit" ${online?'':'disabled'}>Organizar misa</button>${published?`<button class="btn ghost" data-act="edit" ${online?'':'disabled'}>Editar misa</button>`:''}`:''}<button class="btn ghost" data-act="refresh">Actualizar</button></div><button class="btn primary block big" data-act="start" ${entries.length?'':'disabled'}>Comenzar misa</button><ol class="mass-order">${entries.map((e,i)=>`<li><span class="mass-number">${i+1}</span><button class="mass-song" data-read="${i}"><small>${esc(e.moment||e.category||'Canción')}</small><strong>${esc(e.kind==='description'?descriptionLyrics(e.description).replace(/\n+/g,' '):e.title)}</strong>${keyLabel(resolveMassSong(e,getSongs()).key)?`<small>${esc(keyLabel(resolveMassSong(e,getSongs()).key))}</small>`:''}</button></li>`).join('')}</ol>${entries.length?'':'<p class="mass-empty">Todavía no hay canciones para este domingo.</p>'}`}
@@ -19,15 +20,18 @@ export function initMass({getSongs,categoryName,openSong,closeSong,syncSongs,can
   const id=++generation;date=target;busy=true;root.inert=!quiet;
   try{
    let record, connected;
-   try{record=await fetchMass(target);connected=true;}
+   const known=knownDate===target?knownRecord:undefined;
+   try{record=await fetchMass(target,{known});connected=true;}
    catch{record=await db.masses.get(target);connected=false;}
    if(id!==generation||quiet&&editing)return;
+   if(quiet&&renderedDate===target&&connected===online&&(record===known||!connected))return;
    const nextRevision=record?.revision??null;
    const nextPublished=Boolean(record&&!record.deleted_at);
    const nextEntries=(record?.deleted_at?[]:record?.entries||[]).map(e=>resolveMassSong(e,getSongs()));
    if(quiet&&renderedDate===target&&root.children.length&&connected===online&&nextRevision===revision&&nextPublished===published&&JSON.stringify(nextEntries)===JSON.stringify(entries))return;
-   if(connected&&record)await db.masses.put(record).catch(()=>{});
+   if(connected&&record&&record!==known)await db.masses.put(record).catch(()=>{});
    if(id!==generation||quiet&&editing)return;
+   if(connected){knownDate=target;knownRecord=record;}
    online=connected;
    // Refresh the open reader when a new repertoire is published for its Sunday.
    if((connected||record)&&reading.length&&readingDate===target&&nextRevision!==readingRevision){

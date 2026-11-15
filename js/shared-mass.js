@@ -12,8 +12,14 @@ async function request(url, options={}) {
     return await res.json();
   } finally {clearTimeout(timer);}
 }
-export async function fetchMass(date){
-  const rows=await request(`${endpoint}?date=eq.${encodeURIComponent(date)}&select=date,entries,revision,updated_at,deleted_at`);
+export async function fetchMass(date,{known}={}){
+  const url=`${endpoint}?date=eq.${encodeURIComponent(date)}`;
+  if(known!==undefined){
+    const [version]=await request(`${url}&select=revision,updated_at,deleted_at`);
+    if(!version)return null;
+    if(known&&version.revision===known.revision&&version.updated_at===known.updated_at&&version.deleted_at===known.deleted_at)return known;
+  }
+  const rows=await request(`${url}&select=date,entries,revision,updated_at,deleted_at`);
   return rows[0]||null;
 }
 export async function publishMass(date,entries,revision){
