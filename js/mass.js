@@ -76,10 +76,11 @@ export function initMass({getSongs,categoryName,openSong,closeSong,syncSongs,can
   next.disabled=position+(gloria?1:0)>=reading.length-1;
  }
 
- function start(i){reading=structuredClone(entries);readingDate=date;readingRevision=revision;position=i;pairedReading=false;gloriaLayout.value='stacked';reader();}
+ function start(i){reading=structuredClone(entries);readingDate=date;readingRevision=revision;position=i;pairedReading=false;reader();}
  showGloria.onchange=()=>{
   if(!canEdit()||!massGloriaPair(reading,position))return;
   pairedReading=showGloria.checked;
+  if(pairedReading)gloriaLayout.value='columns';
   reader(true);
  };
  prev.onclick=()=>{
