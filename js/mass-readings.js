@@ -16,11 +16,14 @@ export function initMassReadings({getDate,getFontSize,fontSteps}){
   const smaller=$('#mass-readings-smaller');
   const bigger=$('#mass-readings-bigger');
   const retry=$('#mass-readings-retry');
-  let date,readings=[],request=0,font=0,closing=false;
+  let date,readings=[],request=0,font=0,closing=false,selectedLabel='';
 
   function display({resetScroll=true}={}){
-    const index=readings.findIndex(reading=>reading.label===choice.value);
+    const index=readings.findIndex(reading=>reading.label===selectedLabel);
     const reading=readings[index];
+    for(const button of choice.querySelectorAll('button')){
+      button.setAttribute('aria-pressed',String(button.dataset.reading===selectedLabel));
+    }
     title.textContent=reading?.label||'';
     reference.textContent=reading?.title||'';
     text.textContent=reading?.text||'';
@@ -30,14 +33,19 @@ export function initMassReadings({getDate,getFontSize,fontSteps}){
   }
 
   function setReadings(result,{preserve=false}={}){
-    const selected=preserve?choice.value:'';
+    const selected=preserve?selectedLabel:'';
     readings=result?.readings||[];
-    choice.replaceChildren(
-      new Option('Elige una lectura',''),
-      ...readings.map(reading=>new Option(reading.label,reading.label)),
-    );
-    choice.value=readings.some(reading=>reading.label===selected)?selected:'';
-    choice.disabled=!readings.length;
+    selectedLabel=readings.some(reading=>reading.label===selected)?selected:'';
+    choice.replaceChildren(...readings.map(reading=>{
+      const button=document.createElement('button');
+      button.type='button';
+      button.className='mass-reading-choice';
+      button.dataset.reading=reading.label;
+      button.textContent=reading.label;
+      button.setAttribute('aria-controls','mass-reading-scroll');
+      button.onclick=()=>{selectedLabel=reading.label;display();};
+      return button;
+    }));
     display({resetScroll:!preserve});
   }
 
@@ -99,17 +107,16 @@ export function initMassReadings({getDate,getFontSize,fontSteps}){
   }
 
   function step(direction){
-    const index=readings.findIndex(reading=>reading.label===choice.value);
+    const index=readings.findIndex(reading=>reading.label===selectedLabel);
     const reading=readings[index+direction];
     if(index<0||!reading)return;
-    choice.value=reading.label;
+    selectedLabel=reading.label;
     display();
   }
 
   opener.onclick=open;
   $('#mass-readings-close').onclick=dismiss;
   dialog.addEventListener('cancel',event=>{event.preventDefault();dismiss();});
-  choice.onchange=()=>display();
   prev.onclick=()=>step(-1);
   next.onclick=()=>step(1);
   smaller.onclick=()=>setFont(font-1);
