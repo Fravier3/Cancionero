@@ -168,6 +168,7 @@
   <div id="reader" class="reader" hidden role="dialog" aria-modal="true" aria-label="Letra">
     <header class="reader-bar">
       <button id="rd-back" class="icon-btn dark" type="button" aria-label="Volver a la lista" data-icon="arrow-left"></button>
+      <button id="mass-open-readings" class="btn secondary" type="button" aria-haspopup="dialog" aria-controls="mass-readings" hidden>Lecturas</button>
       <div class="reader-actions">
         <button id="rd-smaller" class="size-btn" type="button" aria-label="Letra más pequeña">A<small>−</small></button>
         <button id="rd-bigger" class="size-btn" type="button" aria-label="Letra más grande">A<small>+</small></button>
@@ -199,6 +200,36 @@
       <div><button id="gospel-prev" class="btn secondary" type="button">Anterior</button><button id="gospel-next" class="btn primary" type="button">Siguiente</button></div>
     </footer>
   </div>
+
+  <dialog id="mass-readings" class="mass-readings" aria-labelledby="mass-readings-title">
+    <header class="mass-readings-header">
+      <div>
+        <h2 id="mass-readings-title">Lecturas de la misa</h2>
+        <p id="mass-readings-date"></p>
+      </div>
+      <button id="mass-readings-close" class="btn secondary" type="button" autofocus>Cerrar</button>
+    </header>
+    <div class="mass-readings-toolbar">
+      <select id="mass-readings-choice" aria-label="Elige una lectura">
+        <option value="">Elige una lectura</option>
+      </select>
+      <div class="reader-actions">
+        <button id="mass-readings-smaller" class="size-btn" type="button" aria-label="Letra de la lectura más pequeña">A<small>−</small></button>
+        <button id="mass-readings-bigger" class="size-btn" type="button" aria-label="Letra de la lectura más grande">A<small>+</small></button>
+      </div>
+    </div>
+    <p id="mass-readings-status" class="mass-readings-status" role="status" hidden></p>
+    <article id="mass-reading-scroll" class="mass-reading-scroll" tabindex="0" aria-label="Texto de la lectura">
+      <h3 id="mass-reading-title"></h3>
+      <p id="mass-reading-reference" class="reader-cat"></p>
+      <div id="mass-reading-text" class="reader-lyrics"></div>
+    </article>
+    <footer class="mass-readings-footer">
+      <button id="mass-readings-retry" class="btn secondary" type="button" hidden>Reintentar</button>
+      <button id="mass-readings-prev" class="btn secondary" type="button">Anterior</button>
+      <button id="mass-readings-next" class="btn primary" type="button">Siguiente</button>
+    </footer>
+  </dialog>
 
   <!-- AJUSTES -->
   <div id="sheet" class="sheet-backdrop" hidden>

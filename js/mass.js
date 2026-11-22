@@ -113,7 +113,7 @@ export function initMass({getSongs,categoryName,openSong,closeSong,syncSongs,can
   if(current&&(changed(current)||changed(gloria)))reader(true);
   if(!editing&&root.children.length)render();
  }
- return {refreshSongs,show:()=>{rollover();return editing?Promise.resolve():load();},resetReader,isEditing:()=>editing,setCanEdit:allowed=>{
+ return {refreshSongs,getReadingDate:()=>reading.length?readingDate:null,show:()=>{rollover();return editing?Promise.resolve():load();},resetReader,isEditing:()=>editing,setCanEdit:allowed=>{
   if(!allowed){editing=false;pairedReading=false;}
   if(reading.length)reader(true);
   if(root.children.length)render();

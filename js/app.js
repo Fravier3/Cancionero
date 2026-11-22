@@ -16,6 +16,7 @@ import { cropImage } from './crop.js';
 import { initMass } from './mass.js';
 import { initAccess } from './access.js';
 import { initGospel } from './gospel.js';
+import { initMassReadings } from './mass-readings.js';
 import { fetchMass } from './shared-mass.js';
 import { sundayFor } from './dates.js';
 import {renderMusic,rebaseChords,keyLabel,keyFromChoice,CHORD_CHOICES,blankKey,initMusicEditor} from './music.js';
@@ -725,6 +726,7 @@ async function saveMassKey() {
 
 function displaySong(song, fromMass = false, refresh = false, gloria = null) {
   if(el.reader.hidden&&state.view==='library'){readerLibraryPosition=captureLibraryPosition();libraryPosition=readerLibraryPosition;}
+  $('#mass-open-readings').hidden = !fromMass;
   state.readerId = song.id ?? null;
   const editable = !fromMass && access.isEditor() && Boolean(song.id) && !song.shared;
   $('#rd-edit').hidden = !editable; $('#rd-delete').hidden = !editable;
@@ -786,11 +788,13 @@ async function closeReader({ fromPop = false, refreshMass = true } = {}) {
   if (el.reader.hidden) return;
   if(audioBusy()&&!await confirmBox({title:'¿Salir del fragmento?',message:'La grabación sin guardar se descartará.',okLabel:'Salir sin guardar'})){if(fromPop)history.pushState({reader:true},'');return;}
   closeAudio();
+  const readingsHistory = Boolean(history.state?.massReadings);
+  massReadings.close();
   el.reader.hidden = true;
   mass.resetReader(); gospel.resetReader();
   state.readerId = null;
   releaseAwake();
-  if (!fromPop && history.state?.reader) history.back();
+  if (!fromPop && history.state?.reader) history.go(readingsHistory ? -2 : -1);
   if (state.view === 'mass' && refreshMass) mass.show();
   if(state.view==='library'&&readerLibraryPosition){const position=readerLibraryPosition;restoreLibraryPosition(position);requestAnimationFrame(()=>{if(el.reader.hidden)restoreLibraryPosition(position);});}
 }
@@ -1060,12 +1064,18 @@ function bindEvents() {
   el.rdBigger.addEventListener('click', () => stepFont(1));
   $('#rd-edit').addEventListener('click', editFromReader);
   $('#rd-delete').addEventListener('click', deleteFromReader);
-  window.addEventListener('popstate', () => closeReader({ fromPop: true }));
+  window.addEventListener('popstate', event => {
+    if (massReadings.isOpen() && event.state?.reader) {
+      massReadings.close();
+      return;
+    }
+    closeReader({ fromPop: true });
+  });
   document.addEventListener('visibilitychange', () => {
     if (!el.reader.hidden && document.visibilityState === 'visible') keepAwake();
   });
   document.addEventListener('keydown', (e) => {
-    if (e.key !== 'Escape') return;
+    if (e.key !== 'Escape' || massReadings.isOpen()) return;
     if (!el.sheet.hidden) closeSheet();
     else if (!el.reader.hidden) closeReader();
   });
@@ -1161,6 +1171,7 @@ function applyAccess(){
   applyView({resetScroll:false});
 }
 const mass = initMass({ getSongs: () => state.localSongs, categoryName: catName, closeSong: closeReader, syncSongs: store.syncLibrary, openSong: (song, refresh, gloria)=>{gospel.resetReader();displaySong(song, true, refresh, gloria);}, canEdit:()=>access.isEditor() });
+const massReadings = initMassReadings({getDate:mass.getReadingDate,getFontSize:currentFontSize,fontSteps:FONT_STEPS});
 const gospel = initGospel({canEdit:()=>access.isEditor(),openReading:displaySong,closeOtherReaders:()=>mass.resetReader()});
 const access = initAccess({onChange:(_role,{restored=false}={})=>{applyAccess();if(!restored)closeReader();},beforeChange:async()=>{
   if(state.editing&&isEditDirty())return confirmBox({title:'¿Cambiar el modo?',message:'Guarda tus cambios antes de cambiar el modo.',okLabel:'Continuar'});

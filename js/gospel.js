@@ -20,7 +20,7 @@ export function parseReadings(xml,date){
   if(!readings.some(r=>r.label==='Evangelio')||!readings.some(r=>r.label==='Primera lectura')||!readings.some(r=>r.label==='Salmo responsorial'))throw new Error('Las lecturas todavía no están completas.');
   return {date,celebration:plain(doc.querySelector('litugic_t')?.textContent||''),readings,savedAt:Date.now()};
 }
-function cached(date){
+export function cachedReadings(date){
   try{
     const value=JSON.parse(readStorage(KEY,'null'));
     if(value?.date!==date||!Array.isArray(value.readings)||value.readings.length<3)return null;
@@ -65,29 +65,59 @@ function applySourcePsalm(result,source,previous){
     result.psalmSource=previous.psalmSource;
   }
 }
+function fetchOverride(date){
+  return withDeadline(7000,async signal=>{
+    const response=await fetch(`${URL_BASE}/rest/v1/cancionero_psalm_responses?date=eq.${date}&select=*`,{
+      headers:{apikey:PUBLIC_KEY},cache:'no-store',signal,
+    });
+    if(!response.ok)throw new Error('No se pudo actualizar la respuesta.');
+    const rows=await response.json();
+    return rows[0]||null;
+  });
+}
+function applyOverride(result,override){
+  result.psalmOverride=override;
+  const psalm=getPsalm(result);
+  psalm.originalText??=psalm.text;
+  psalm.text=override?replaceResponse(psalm.originalText,override.response):formatPsalm(psalm.originalText);
+}
+async function loadOverride(result){applyOverride(result,await fetchOverride(result.date));}
+
+export function saveReadings(result){
+  writeStorage(KEY,JSON.stringify(result));
+}
+
+export async function fetchReadings(date,{force=false,previous=cachedReadings(date)}={}){
+  const complete=previous&&psalmResponse(getPsalm(previous)?.originalText||getPsalm(previous)?.text);
+  const override=fetchOverride(date).catch(()=>undefined);
+  let result;
+  if(complete&&!previous.usedOfflineCopy&&!force&&Date.now()-previous.savedAt<MAX_AGE){
+    result=structuredClone(previous);
+  }else{
+    const [primary,secondary]=await Promise.allSettled([
+      loadEvangelizo(date),
+      withDeadline(18000,signal=>call('readings',{date},{public:true,signal})),
+    ]);
+    const source=secondary.status==='fulfilled'?secondary.value:null;
+    result=(primary.status==='fulfilled'?primary.value:null)||usccbReadings(source,date);
+    if(!result&&!previous)return null;
+    const offline=!result;
+    result??=structuredClone(previous);
+    applySourcePsalm(result,source,previous);
+    result.usedOfflineCopy=offline;
+    if(previous?.psalmOverride)applyOverride(result,previous.psalmOverride);
+  }
+  const sharedResponse=await override;
+  if(sharedResponse!==undefined)applyOverride(result,sharedResponse);
+  return result;
+}
+
 export function initGospel({openReading,closeOtherReaders,canEdit=()=>false}){
   const root=document.querySelector('#view-gospel'),nav=document.querySelector('#gospel-reader-nav');
   const prev=document.querySelector('#gospel-prev'),next=document.querySelector('#gospel-next');
   let data=null,token=0,index=0,opened=null;
-  function fetchOverride(date){
-    return withDeadline(7000,async signal=>{
-      const response=await fetch(`${URL_BASE}/rest/v1/cancionero_psalm_responses?date=eq.${date}&select=*`,{
-        headers:{apikey:PUBLIC_KEY},cache:'no-store',signal,
-      });
-      if(!response.ok)throw new Error('No se pudo actualizar la respuesta.');
-      const rows=await response.json();
-      return rows[0]||null;
-    });
-  }
-  function applyOverride(result,override){
-    result.psalmOverride=override;
-    const psalm=getPsalm(result);
-    psalm.originalText??=psalm.text;
-    psalm.text=override?replaceResponse(psalm.originalText,override.response):formatPsalm(psalm.originalText);
-  }
-  async function loadOverride(result){applyOverride(result,await fetchOverride(result.date));}
   async function editResponse(){if(!canEdit()||!data)return;const psalm=data.readings.find(r=>r.label==='Salmo responsorial');const value=await askText({title:'Respuesta de la asamblea (R.)',message:'Esta respuesta se compartirá para este domingo. Las estrofas del lector se conservan.',value:data.psalmOverride?.response||psalmResponse(psalm.text),maxLength:500});if(!value)return;
-   try{await call('psalm_response_save',{date:data.date,response:value,revision:data.psalmOverride?.revision??null});await loadOverride(data);writeStorage(KEY,JSON.stringify(data));render('Respuesta guardada para todos.');if(opened?.date===data.date&&!nav.hidden){opened=structuredClone(data);display();}toast('Respuesta del salmo guardada');}catch(error){toast(error.message,5000);}
+   try{await call('psalm_response_save',{date:data.date,response:value,revision:data.psalmOverride?.revision??null});await loadOverride(data);saveReadings(data);render('Respuesta guardada para todos.');if(opened?.date===data.date&&!nav.hidden){opened=structuredClone(data);display();}toast('Respuesta del salmo guardada');}catch(error){toast(error.message,5000);}
   }
   const editButton=document.createElement('button');editButton.type='button';editButton.className='btn secondary';editButton.id='psalm-reader-edit';editButton.textContent='Editar respuesta (R.)';editButton.onclick=editResponse;nav.prepend(editButton);
   function render(message=''){
@@ -100,36 +130,17 @@ export function initGospel({openReading,closeOtherReaders,canEdit=()=>false}){
     <div class="readings-footer"><button class="btn secondary" type="button" data-readings-refresh>Actualizar lecturas</button><p>Fuente: ${data?.readingsSource?'<a href="https://bible.usccb.org/es" target="_blank" rel="noopener noreferrer">USCCB · Lecturas en español</a>':'<a href="https://www.evangeliodeldia.org/" target="_blank" rel="noopener noreferrer">Evangelizo · Evangelio del día</a>'}<br>Salmo responsorial: USCCB (leccionario de México; puede variar en tu parroquia).<br>Calendario romano ordinario · Español</p></div>`;
   }
   async function show(force=false){
-    const current=++token,date=sundayFor(),previous=cached(date);
+    const current=++token,date=sundayFor(),previous=cachedReadings(date);
     data=previous;
     render(data?'Lecturas guardadas de este domingo.':'Cargando las lecturas de este domingo…');
-    const stillCurrent=()=>current===token&&date===sundayFor();
-    const complete=previous&&psalmResponse(getPsalm(previous)?.originalText||getPsalm(previous)?.text);
-    const override=fetchOverride(date).catch(()=>undefined);
-    let result;
-    if(complete&&!previous.usedOfflineCopy&&!force&&Date.now()-previous.savedAt<MAX_AGE){
-      result=previous;
-    }else{
-      const [primary,secondary]=await Promise.allSettled([
-        loadEvangelizo(date),
-        withDeadline(18000,signal=>call('readings',{date},{public:true,signal})),
-      ]);
-      if(!stillCurrent())return;
-      const source=secondary.status==='fulfilled'?secondary.value:null;
-      result=(primary.status==='fulfilled'?primary.value:null)||usccbReadings(source,date)||previous;
-      if(!result){
-        render('No se pudieron cargar las lecturas de este domingo. Pulsa Actualizar lecturas para reintentar.');
-        return;
-      }
-      applySourcePsalm(result,source,previous);
-      result.usedOfflineCopy=result===previous;
-      if(previous?.psalmOverride)applyOverride(result,previous.psalmOverride);
+    const result=await fetchReadings(date,{force,previous}).catch(()=>null);
+    if(current!==token||date!==sundayFor())return;
+    if(!result){
+      render('No se pudieron cargar las lecturas de este domingo. Pulsa Actualizar lecturas para reintentar.');
+      return;
     }
-    const sharedResponse=await override;
-    if(!stillCurrent())return;
-    if(sharedResponse!==undefined)applyOverride(result,sharedResponse);
     data=result;
-    writeStorage(KEY,JSON.stringify(result));
+    saveReadings(result);
     let message=result.usedOfflineCopy
       ?'Fuentes no disponibles · mostrando la copia guardada de este domingo.'
       :'Lecturas de este domingo listas para leer.';
