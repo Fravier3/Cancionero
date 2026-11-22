@@ -129,9 +129,9 @@ p {
   justify-content: space-between;
   gap: var(--s3);
   padding: calc(var(--safe-top) + var(--s3)) calc(var(--safe-right) + var(--s4)) var(--s3) calc(var(--safe-left) + var(--s4));
-  background: color-mix(in srgb, var(--bg) 88%, transparent);
-  -webkit-backdrop-filter: blur(14px);
-  backdrop-filter: blur(14px);
+  background: #fff;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 .brand {
@@ -294,9 +294,9 @@ main {
   justify-content: center;
   gap: var(--s2);
   padding: var(--s2) calc(var(--safe-right) + var(--s3)) calc(var(--safe-bottom) + var(--s2)) calc(var(--safe-left) + var(--s3));
-  background: color-mix(in srgb, var(--surface) 92%, transparent);
-  -webkit-backdrop-filter: blur(16px);
-  backdrop-filter: blur(16px);
+  background: #fff;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
   border-top: 1px solid var(--line);
 }
 
@@ -1331,3 +1331,12 @@ html,body,button,a,input,select,textarea,summary,.reader-lyrics{touch-action:pan
 }
 .mass-reading-choice[aria-pressed="true"] {background:var(--primary);border-color:var(--primary);color:#fff;}
 .mass-reading-choice:focus-visible {outline:3px solid var(--primary);outline-offset:2px;}
+
+/* Opaque surfaces keep headers clear beneath the iOS status bar. */
+.reader-bar,.sheet-head,.mass-readings-header,.mass-readings-toolbar,.mass-readings-footer {
+  background:#fff;
+  -webkit-backdrop-filter:none;
+  backdrop-filter:none;
+}
+.mass-readings {box-shadow:none;}
+.mass-readings::backdrop {-webkit-backdrop-filter:none;backdrop-filter:none;}
