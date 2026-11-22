@@ -1279,3 +1279,17 @@ html,body,button,a,input,select,textarea,summary,.reader-lyrics{touch-action:pan
 #mass-gloria-options input {flex:none;}
 .reader-gloria {margin-top:1em;padding-top:.75em;border-top:1px solid var(--line);}
 .reader-gloria h3 {margin:0 0 .25em;font-size:1em;line-height:1.25;}
+#mass-gloria-options {flex-wrap:wrap;column-gap:12px;row-gap:0;}
+#mass-gloria-layout {margin-block:0 8px;min-height:44px;font-size:16px;max-width:100%;}
+.reader-song-pair {white-space:normal;}
+.reader-song-text {white-space:pre-wrap;}
+.reader-piedad h3 {display:none;}
+.reader-columns #rd-title,.reader-columns #rd-cat {display:none;}
+.reader-columns .reader-song-pair {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;}
+.reader-columns .reader-gloria {margin:0;padding:0 0 0 12px;border-top:0;border-left:1px solid var(--line);}
+.reader-columns .reader-piedad h3 {display:block;margin:0 0 .25em;font-size:1em;line-height:1.25;}
+.reader-columns .reader-song-text {overflow-x:auto;}
+@media(max-width:599px) {
+  .reader-columns .reader-song-pair {gap:8px;font-size:max(14px,calc(var(--fs) * .72));}
+  .reader-columns .reader-gloria {padding-left:8px;}
+}

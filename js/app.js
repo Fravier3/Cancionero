@@ -750,12 +750,18 @@ function displaySong(song, fromMass = false, refresh = false, gloria = null) {
   if (!history.state?.reader) history.pushState({ reader: true }, '');
 }
 
+function applyGloriaLayout() {
+  const columns = Boolean(state.readerGloria) && $('#mass-gloria-layout').value === 'columns';
+  el.rdScroll.classList.toggle('reader-columns', columns);
+}
+
 function renderReaderMusic() {
   const song = state.readerSong;
   if (!song) return;
   const show = readStorage('cancionero.show-chords', '1') === '1';
   $('#show-chords').checked = show;
   const gloria = state.readerGloria;
+  applyGloriaLayout();
   const lyrics = renderMusic(song.lyrics, song.chords || [], show);
   if (!gloria) {
     el.rdLyrics.innerHTML = lyrics;
@@ -763,11 +769,17 @@ function renderReaderMusic() {
   }
   const title = (gloria.number ? gloria.number + ' · ' : '') + (gloria.title || 'Gloria');
   const key = keyLabel(gloria.key);
-  el.rdLyrics.innerHTML = lyrics + `<section class="reader-gloria" aria-labelledby="rd-gloria-title">
-    <h3 id="rd-gloria-title">${esc(title)}</h3>
-    ${key ? `<p class="reader-cat">Tonalidad: ${esc(key)}</p>` : ''}
-    ${renderMusic(gloria.lyrics, gloria.chords || [], show)}
-  </section>`;
+  el.rdLyrics.innerHTML = `<div class="reader-song-pair">
+    <section class="reader-piedad">
+      <h3>${esc(el.rdTitle.textContent)}</h3>
+      <div class="reader-song-text">${lyrics}</div>
+    </section>
+    <section class="reader-gloria" aria-labelledby="rd-gloria-title">
+      <h3 id="rd-gloria-title">${esc(title)}</h3>
+      ${key ? `<p class="reader-cat">Tonalidad: ${esc(key)}</p>` : ''}
+      <div class="reader-song-text">${renderMusic(gloria.lyrics, gloria.chords || [], show)}</div>
+    </section>
+  </div>`;
 }
 
 async function closeReader({ fromPop = false, refreshMass = true } = {}) {
@@ -839,8 +851,7 @@ function renderSheet() {
       <p class="note" style="margin-top:10px">Al eliminar una categoría, sus letras no se borran: quedan «sin categoría».</p>
     </section>
     <section>
-      <h3>Respaldo</h3>
-      <div class="backup-actions">
+      <h3>Respaldo</h3><div class="backup-actions">
         <button type="button" class="btn secondary block" id="btn-export">${icon('download', 20)} Exportar letras y misas</button>
         <button type="button" class="btn secondary block" id="btn-import">${icon('upload', 20)} Importar un respaldo</button>
       </div>
@@ -1036,6 +1047,7 @@ function bindEvents() {
     });
   }
   $('#reprocess-photo').addEventListener('click',async()=>{await navigate('scan');runOcr(null,'replace');});
+  $('#mass-gloria-layout').addEventListener('change', applyGloriaLayout);
   $('#show-chords').addEventListener('change',()=>{writeStorage('cancionero.show-chords',$('#show-chords').checked?'1':'0');renderReaderMusic();});
   $('#sync-refresh').addEventListener('click',()=>store.syncLibrary());
   $('#migration-banner').addEventListener('click',e=>{if(e.target.closest('#migration-start'))runMigration();});

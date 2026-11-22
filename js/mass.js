@@ -53,6 +53,7 @@ export function initMass({getSongs,categoryName,openSong,closeSong,syncSongs,can
  async function leave(target){if(editing&&!await confirmBox({title:'¿Salir de la edición?',message:'Hay cambios sin publicar.',okLabel:'Salir sin guardar'}))return;editing=false;await load(target);}
  const gloriaOptions=document.querySelector('#mass-gloria-options');
  const showGloria=document.querySelector('#mass-show-gloria');
+ const gloriaLayout=document.querySelector('#mass-gloria-layout');
  let pairedReading=false;
 
  function reader(refresh=false){
@@ -65,6 +66,7 @@ export function initMass({getSongs,categoryName,openSong,closeSong,syncSongs,can
   if(gloria)reading[position+1]=gloria;
   gloriaOptions.hidden=!pair;
   showGloria.checked=Boolean(gloria);
+  gloriaLayout.hidden=!gloria;
   openSong(song.kind==='description'?{title:song.moment||song.title,lyrics:descriptionLyrics(song.description),category:'',source:'mass-description'}:song,refresh,gloria);
   nav.hidden=false;
   const moment=gloria?`${song.moment||'Ten piedad'} y Gloria`:song.moment||'';
@@ -74,7 +76,7 @@ export function initMass({getSongs,categoryName,openSong,closeSong,syncSongs,can
   next.disabled=position+(gloria?1:0)>=reading.length-1;
  }
 
- function start(i){reading=structuredClone(entries);readingDate=date;readingRevision=revision;position=i;pairedReading=false;reader();}
+ function start(i){reading=structuredClone(entries);readingDate=date;readingRevision=revision;position=i;pairedReading=false;gloriaLayout.value='stacked';reader();}
  showGloria.onchange=()=>{
   if(!canEdit()||!massGloriaPair(reading,position))return;
   pairedReading=showGloria.checked;
@@ -91,7 +93,7 @@ export function initMass({getSongs,categoryName,openSong,closeSong,syncSongs,can
   position+=showGloria.checked?2:1;
   reader();
  };
- function resetReader(){reading=[];pairedReading=false;showGloria.checked=false;gloriaOptions.hidden=true;nav.hidden=true;}
+ function resetReader(){reading=[];pairedReading=false;showGloria.checked=false;gloriaLayout.hidden=true;gloriaOptions.hidden=true;nav.hidden=true;}
  root.addEventListener('input',e=>{if(e.target.dataset.slotSearch!==undefined){renderResults(Number(e.target.dataset.slotSearch),e.target.value);return;}if(e.target.dataset.slotDescription!==undefined)slots[Number(e.target.dataset.slotDescription)].description=e.target.value;});
  root.addEventListener('change',e=>{if(e.target.id==='mass-date'){const d=parseDate(e.target.value);if(d)leave(sundayFor(d));return;}if(!editing||!canEdit())return;if(e.target.dataset.slotMode!==undefined){slots[Number(e.target.dataset.slotMode)].mode=e.target.value;render();}if(e.target.dataset.slotSong!==undefined){const s=slots[Number(e.target.dataset.slotSong)];if(e.target.value==='__current__')return;const song=getSongs().find(x=>String(x.id)===e.target.value);s.song=song?{songId:String(song.id),title:song.title,lyrics:song.lyrics,category:categoryName(song),key:song.key,chords:song.chords,number:song.number}:null;}});
  root.addEventListener('click',async e=>{if(root.inert)return;const pick=e.target.closest('[data-pick-song]');if(pick&&editing&&canEdit()){const song=getSongs().find(s=>String(s.id)===pick.dataset.pickSong);slots[Number(pick.dataset.pickSlot)].song=song?{songId:String(song.id),title:song.title,lyrics:song.lyrics,category:categoryName(song),key:song.key,chords:song.chords,number:song.number}:null;render();return;}if(e.target.closest('[data-read]'))return start(Number(e.target.closest('[data-read]').dataset.read));if(e.target.dataset.extra!==undefined&&editing&&canEdit()){extras.splice(Number(e.target.dataset.extra),1);render();return;}const action=e.target.closest('[data-act]')?.dataset.act;if(action==='prev')return leave(shiftSunday(date,-1));if(action==='next')return leave(shiftSunday(date,1));if(action==='refresh')return Promise.all([syncSongs(),leave(date)]);if(action==='start')return start(0);if(action==='cancel')return leave(date);if(!canEdit()||!online)return;if(action==='edit'){generation++;busy=false;({slots,extras}=slotsFrom(entries.map(e=>resolveMassSong(e,getSongs()))));editing=true;render();return;}
