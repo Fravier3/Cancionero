@@ -1273,3 +1273,9 @@ html,body,button,a,input,select,textarea,summary,.reader-lyrics{touch-action:pan
 .mass-reader-audio {margin-top:20px;}
 .mass-reader-audio summary {width:fit-content;min-height:44px;padding:12px 10px;border:1px solid var(--line);border-radius:9px;color:var(--primary);font-size:14px;font-weight:650;cursor:pointer;}
 .mass-reader-audio audio {display:block;width:min(100%, 320px);margin-top:8px;}
+
+#mass-gloria-options {padding-block:0;}
+#mass-gloria-options label {min-height:44px;cursor:pointer;}
+#mass-gloria-options input {flex:none;}
+.reader-gloria {margin-top:1em;padding-top:.75em;border-top:1px solid var(--line);}
+.reader-gloria h3 {margin:0 0 .25em;font-size:1em;line-height:1.25;}

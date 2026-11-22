@@ -723,7 +723,7 @@ async function saveMassKey() {
   }
 }
 
-function displaySong(song, fromMass = false, refresh = false) {
+function displaySong(song, fromMass = false, refresh = false, gloria = null) {
   if(el.reader.hidden&&state.view==='library'){readerLibraryPosition=captureLibraryPosition();libraryPosition=readerLibraryPosition;}
   state.readerId = song.id ?? null;
   const editable = !fromMass && access.isEditor() && Boolean(song.id) && !song.shared;
@@ -731,6 +731,7 @@ function displaySong(song, fromMass = false, refresh = false) {
   el.rdTitle.textContent = (song.number?song.number+' · ':'')+song.title;
   el.rdCat.textContent = catName(song);
   state.readerSong=song;
+  state.readerGloria=gloria;
   renderReaderMusic();
   const audioRoot = $('#rd-audio');
   const librarySong = state.localSongs.find(s => String(s.id) === String(song.songId || song.id));
@@ -749,7 +750,25 @@ function displaySong(song, fromMass = false, refresh = false) {
   if (!history.state?.reader) history.pushState({ reader: true }, '');
 }
 
-function renderReaderMusic(){const song=state.readerSong;if(!song)return;const show=readStorage('cancionero.show-chords','1')==='1';$('#show-chords').checked=show;el.rdLyrics.innerHTML=renderMusic(song.lyrics,song.chords||[],show);}
+function renderReaderMusic() {
+  const song = state.readerSong;
+  if (!song) return;
+  const show = readStorage('cancionero.show-chords', '1') === '1';
+  $('#show-chords').checked = show;
+  const gloria = state.readerGloria;
+  const lyrics = renderMusic(song.lyrics, song.chords || [], show);
+  if (!gloria) {
+    el.rdLyrics.innerHTML = lyrics;
+    return;
+  }
+  const title = (gloria.number ? gloria.number + ' · ' : '') + (gloria.title || 'Gloria');
+  const key = keyLabel(gloria.key);
+  el.rdLyrics.innerHTML = lyrics + `<section class="reader-gloria" aria-labelledby="rd-gloria-title">
+    <h3 id="rd-gloria-title">${esc(title)}</h3>
+    ${key ? `<p class="reader-cat">Tonalidad: ${esc(key)}</p>` : ''}
+    ${renderMusic(gloria.lyrics, gloria.chords || [], show)}
+  </section>`;
+}
 
 async function closeReader({ fromPop = false, refreshMass = true } = {}) {
   if (el.reader.hidden) return;
@@ -1129,7 +1148,7 @@ function applyAccess(){
   renderLibrary();
   applyView({resetScroll:false});
 }
-const mass = initMass({ getSongs: () => state.localSongs, categoryName: catName, closeSong: closeReader, syncSongs: store.syncLibrary, openSong: (song, refresh)=>{gospel.resetReader();displaySong(song, true, refresh);}, canEdit:()=>access.isEditor() });
+const mass = initMass({ getSongs: () => state.localSongs, categoryName: catName, closeSong: closeReader, syncSongs: store.syncLibrary, openSong: (song, refresh, gloria)=>{gospel.resetReader();displaySong(song, true, refresh, gloria);}, canEdit:()=>access.isEditor() });
 const gospel = initGospel({canEdit:()=>access.isEditor(),openReading:displaySong,closeOtherReaders:()=>mass.resetReader()});
 const access = initAccess({onChange:(_role,{restored=false}={})=>{applyAccess();if(!restored)closeReader();},beforeChange:async()=>{
   if(state.editing&&isEditDirty())return confirmBox({title:'¿Cambiar el modo?',message:'Guarda tus cambios antes de cambiar el modo.',okLabel:'Continuar'});

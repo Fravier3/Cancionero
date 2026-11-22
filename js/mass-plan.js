@@ -1,4 +1,5 @@
 import {searchText} from './search.js';
+import {norm} from './util.js';
 export const MOMENTS=['Entrada','Ten piedad','Gloria','Interleccional','Ofertorio','Santo','Cordero','Comunión','Despedida'];
 export const descriptionLyrics=text=>'Cantaremos:\n\n“'+String(text).trim().replace(/[.…]+$/u,'')+'...”';
 export function slotsFrom(entries){const slots=MOMENTS.map(moment=>({moment,mode:'song',song:null,description:''})),extras=[];for(const entry of entries){let i=MOMENTS.indexOf(entry.moment);if(i<0){const names={'Piedad':'Ten piedad','Aleluya':'Interleccional','Cordero de Dios':'Cordero','Salida':'Despedida'};i=MOMENTS.indexOf(names[entry.category]||entry.category);}if(i<0||slots[i].song||slots[i].description)i=slots.findIndex(s=>!s.song&&!s.description);if(i<0){extras.push(entry);continue;}slots[i]=entry.kind==='description'?{moment:MOMENTS[i],mode:'description',song:null,description:entry.description||entry.lyrics}:{moment:MOMENTS[i],mode:'song',song:entry,description:''};}return {slots,extras};}
@@ -15,4 +16,13 @@ export function resolveMassSong(entry,songs){
   if(matches.length===1)song=matches[0];
  }
  return song?{...entry,songId:String(song.id),title:song.title,lyrics:song.lyrics,key:song.key,chords:song.chords||[],number:song.number||'',audio_path:song.audio_path||''}:entry;
+}
+
+export function massGloriaPair(entries, position) {
+ const piedad = entries[position];
+ const gloria = entries[position + 1];
+ if (!piedad || !gloria || piedad.kind === 'description' || gloria.kind === 'description') return null;
+ const moment = norm(piedad.moment || piedad.category);
+ const gloriaMoment = norm(gloria.moment || gloria.category);
+ return ['piedad', 'ten piedad', 'senor ten piedad'].includes(moment) && gloriaMoment === 'gloria' ? gloria : null;
 }

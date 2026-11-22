@@ -24,3 +24,17 @@ test('linked songs follow title, lyrics and chords edits while descriptions and 
  assert.equal(result.moment,'Entrada');assert.equal(resolveMassSong(old,[]),old);
  assert.equal(resolveMassSong({...old,kind:'description'},[updated]).lyrics,old.lyrics);
 });
+
+test('pairs adjacent Piedad and Gloria songs, including legacy categories', async () => {
+ const {massGloriaPair}=await import('../js/mass-plan.js');
+ const piedad={moment:'Ten piedad',kind:'song'};
+ const gloria={moment:'Gloria',kind:'song'};
+ const entrada={moment:'Entrada',kind:'song'};
+ assert.equal(massGloriaPair([entrada,piedad,gloria],1),gloria);
+ assert.equal(massGloriaPair([{category:'Señor, ten piedad'},{category:'Gloria'}],0)?.category,'Gloria');
+ assert.equal(massGloriaPair([piedad,entrada,gloria],0),null);
+ assert.equal(massGloriaPair([piedad],0),null);
+ assert.equal(massGloriaPair([piedad,{...gloria,kind:'description'}],0),null);
+ assert.equal(massGloriaPair([{...piedad,kind:'description'},gloria],0),null);
+ assert.equal(massGloriaPair([piedad,gloria],1),null);
+});

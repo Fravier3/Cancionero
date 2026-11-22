@@ -6,7 +6,7 @@ import {esc} from './util.js';
 import {toast,confirmBox} from './ui.js';
 import {fetchMass,publishMass,deleteMass} from './shared-mass.js';
 import {sundayFor,shiftSunday,sundayLabel,parseDate} from './dates.js';
-import {slotsFrom,planEntries,descriptionLyrics,resolveMassSong} from './mass-plan.js';
+import {slotsFrom,planEntries,descriptionLyrics,resolveMassSong,massGloriaPair} from './mass-plan.js';
 export function initMass({getSongs,categoryName,openSong,closeSong,syncSongs,canEdit=()=>false}){
  const root=document.querySelector('#view-mass'),nav=document.querySelector('#mass-reader-nav'),prev=document.querySelector('#mass-prev'),next=document.querySelector('#mass-next');
  let autoDate=sundayFor();
@@ -51,10 +51,47 @@ export function initMass({getSongs,categoryName,openSong,closeSong,syncSongs,can
   }finally{if(id===generation){busy=false;root.inert=false;}}
  }
  async function leave(target){if(editing&&!await confirmBox({title:'¿Salir de la edición?',message:'Hay cambios sin publicar.',okLabel:'Salir sin guardar'}))return;editing=false;await load(target);}
- function reader(refresh=false){const e=reading[position]&&resolveMassSong(reading[position],getSongs());if(!e)return;reading[position]=e;openSong(e.kind==='description'?{title:e.moment||e.title,lyrics:descriptionLyrics(e.description),category:'',source:'mass-description'}:e,refresh);nav.hidden=false;document.querySelector('#mass-reader-position').textContent=`${sundayLabel(readingDate)} · ${e.moment||''} · ${position+1} de ${reading.length}`;prev.disabled=position===0;next.disabled=position===reading.length-1;}
- function start(i){reading=structuredClone(entries);readingDate=date;readingRevision=revision;position=i;reader();}
- prev.onclick=()=>{if(position>0){position--;reader();}};next.onclick=()=>{if(position<reading.length-1){position++;reader();}};
- function resetReader(){reading=[];nav.hidden=true;}
+ const gloriaOptions=document.querySelector('#mass-gloria-options');
+ const showGloria=document.querySelector('#mass-show-gloria');
+ let pairedReading=false;
+
+ function reader(refresh=false){
+  const entry=reading[position];
+  if(!entry)return;
+  const song=resolveMassSong(entry,getSongs());
+  reading[position]=song;
+  const pair=canEdit()?massGloriaPair(reading,position):null;
+  const gloria=pair&&pairedReading?resolveMassSong(pair,getSongs()):null;
+  if(gloria)reading[position+1]=gloria;
+  gloriaOptions.hidden=!pair;
+  showGloria.checked=Boolean(gloria);
+  openSong(song.kind==='description'?{title:song.moment||song.title,lyrics:descriptionLyrics(song.description),category:'',source:'mass-description'}:song,refresh,gloria);
+  nav.hidden=false;
+  const moment=gloria?`${song.moment||'Ten piedad'} y Gloria`:song.moment||'';
+  const progress=gloria?`${position+1}–${position+2}`:position+1;
+  document.querySelector('#mass-reader-position').textContent=`${sundayLabel(readingDate)} · ${moment} · ${progress} de ${reading.length}`;
+  prev.disabled=position===0;
+  next.disabled=position+(gloria?1:0)>=reading.length-1;
+ }
+
+ function start(i){reading=structuredClone(entries);readingDate=date;readingRevision=revision;position=i;pairedReading=false;reader();}
+ showGloria.onchange=()=>{
+  if(!canEdit()||!massGloriaPair(reading,position))return;
+  pairedReading=showGloria.checked;
+  reader(true);
+ };
+ prev.onclick=()=>{
+  if(position===0)return;
+  const previousIsPair=canEdit()&&pairedReading&&position>=2&&massGloriaPair(reading,position-2);
+  position-=previousIsPair?2:1;
+  reader();
+ };
+ next.onclick=()=>{
+  if(next.disabled)return;
+  position+=showGloria.checked?2:1;
+  reader();
+ };
+ function resetReader(){reading=[];pairedReading=false;showGloria.checked=false;gloriaOptions.hidden=true;nav.hidden=true;}
  root.addEventListener('input',e=>{if(e.target.dataset.slotSearch!==undefined){renderResults(Number(e.target.dataset.slotSearch),e.target.value);return;}if(e.target.dataset.slotDescription!==undefined)slots[Number(e.target.dataset.slotDescription)].description=e.target.value;});
  root.addEventListener('change',e=>{if(e.target.id==='mass-date'){const d=parseDate(e.target.value);if(d)leave(sundayFor(d));return;}if(!editing||!canEdit())return;if(e.target.dataset.slotMode!==undefined){slots[Number(e.target.dataset.slotMode)].mode=e.target.value;render();}if(e.target.dataset.slotSong!==undefined){const s=slots[Number(e.target.dataset.slotSong)];if(e.target.value==='__current__')return;const song=getSongs().find(x=>String(x.id)===e.target.value);s.song=song?{songId:String(song.id),title:song.title,lyrics:song.lyrics,category:categoryName(song),key:song.key,chords:song.chords,number:song.number}:null;}});
  root.addEventListener('click',async e=>{if(root.inert)return;const pick=e.target.closest('[data-pick-song]');if(pick&&editing&&canEdit()){const song=getSongs().find(s=>String(s.id)===pick.dataset.pickSong);slots[Number(pick.dataset.pickSlot)].song=song?{songId:String(song.id),title:song.title,lyrics:song.lyrics,category:categoryName(song),key:song.key,chords:song.chords,number:song.number}:null;render();return;}if(e.target.closest('[data-read]'))return start(Number(e.target.closest('[data-read]').dataset.read));if(e.target.dataset.extra!==undefined&&editing&&canEdit()){extras.splice(Number(e.target.dataset.extra),1);render();return;}const action=e.target.closest('[data-act]')?.dataset.act;if(action==='prev')return leave(shiftSunday(date,-1));if(action==='next')return leave(shiftSunday(date,1));if(action==='refresh')return Promise.all([syncSongs(),leave(date)]);if(action==='start')return start(0);if(action==='cancel')return leave(date);if(!canEdit()||!online)return;if(action==='edit'){generation++;busy=false;({slots,extras}=slotsFrom(entries.map(e=>resolveMassSong(e,getSongs()))));editing=true;render();return;}
@@ -64,6 +101,18 @@ export function initMass({getSongs,categoryName,openSong,closeSong,syncSongs,can
  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){rollover();if(!editing&&!busy&&!root.hidden)load(date,{quiet:true});}});
  document.addEventListener('click',e=>{root.querySelectorAll('.mass-picker[open]').forEach(p=>{if(!p.contains(e.target))p.open=false;});});
  setInterval(()=>{rollover();if(!editing&&!busy&&!root.hidden&&document.visibilityState==='visible')load(date,{quiet:true});},15000);window.addEventListener('online',()=>{if(!editing&&!busy&&!root.hidden)load(date,{quiet:true});});window.addEventListener('beforeunload',e=>{if(editing){e.preventDefault();e.returnValue='';}});
- function refreshSongs(){entries=entries.map(e=>resolveMassSong(e,getSongs()));if(reading.length&&JSON.stringify(resolveMassSong(reading[position],getSongs()))!==JSON.stringify(reading[position]))reader(true);if(!editing&&root.children.length)render();}
- return {refreshSongs,show:()=>{rollover();return editing?Promise.resolve():load();},resetReader,isEditing:()=>editing,setCanEdit:allowed=>{if(!allowed)editing=false;if(root.children.length)render();}};
+ function refreshSongs(){
+  const songs=getSongs();
+  entries=entries.map(entry=>resolveMassSong(entry,songs));
+  const current=reading[position];
+  const gloria=canEdit()&&pairedReading?massGloriaPair(reading,position):null;
+  const changed=entry=>entry&&JSON.stringify(resolveMassSong(entry,songs))!==JSON.stringify(entry);
+  if(current&&(changed(current)||changed(gloria)))reader(true);
+  if(!editing&&root.children.length)render();
+ }
+ return {refreshSongs,show:()=>{rollover();return editing?Promise.resolve():load();},resetReader,isEditing:()=>editing,setCanEdit:allowed=>{
+  if(!allowed){editing=false;pairedReading=false;}
+  if(reading.length)reader(true);
+  if(root.children.length)render();
+ }};
 }
