@@ -1228,7 +1228,7 @@ html, body, #app, .topbar, .tabbar { background: #fff; color-scheme: only light;
 @media(max-width:480px){.song-metadata{grid-template-columns:1fr;gap:0;}.key-field{margin-bottom:16px;}}
 
 /* Keep every interactive surface outside the system status and home areas. */
-.topbar{padding-top:calc(var(--safe-top) + 18px);}.reader-bar{padding-top:calc(var(--safe-top) + 14px);}
+.topbar{padding-top:calc(var(--safe-top) + 30px);}.reader-bar{padding-top:calc(var(--safe-top) + 14px);}
 .sheet{max-height:calc(100dvh - var(--safe-top) - 20px);}.sheet-head{padding-left:calc(var(--safe-left) + 20px);padding-right:calc(var(--safe-right) + 20px);}
 .mode-screen{padding-left:calc(var(--safe-left) + 20px);padding-right:calc(var(--safe-right) + 20px);}
 .crop-dialog{padding:calc(var(--safe-top) + 16px) calc(var(--safe-right) + 12px) calc(var(--safe-bottom) + 16px) calc(var(--safe-left) + 12px);}
