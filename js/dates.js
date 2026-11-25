@@ -1,5 +1,5 @@
 // Calendar dates use local noon, never UTC midnight (which can change the day).
-const specialMassDates = ['2026-11-26', '2026-12-25', '2027-01-01'];
+const specialMassDates = ['2026-11-26', '2026-12-25', '2027-01-01', '2027-01-06'];
 
 export function dateKey(d) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;

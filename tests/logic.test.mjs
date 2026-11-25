@@ -16,6 +16,7 @@ test('Special Mass dates are selectable and sit between the surrounding Sundays'
     ['2026-11-22','2026-11-26','2026-11-29'],
     ['2026-12-20','2026-12-25','2026-12-27'],
     ['2026-12-27','2027-01-01','2027-01-03'],
+    ['2027-01-03','2027-01-06','2027-01-10'],
   ];
   for(const [before,special,after] of celebrations){
     assert.equal(massDateFromPicker(special),special);
@@ -32,10 +33,13 @@ test('Special Mass dates are selectable and sit between the surrounding Sundays'
 test('The default opens the next Mass and exceptions do not repeat annually',()=>{
   assert.equal(massDateFor(parseDate('2026-11-25')),'2026-11-26');
   assert.equal(massDateFor(parseDate('2026-11-27')),'2026-11-29');
+  assert.equal(massDateFor(parseDate('2027-01-05')),'2027-01-06');
+  assert.equal(massDateFor(parseDate('2027-01-07')),'2027-01-10');
   assert.equal(massDateFromPicker('2026-11-25'),'2026-11-29');
   assert.equal(massDateFromPicker('2026-02-30'),null);
   assert.equal(massDateFromPicker('2027-12-25'),'2027-12-26');
   assert.equal(massDateFromPicker('2028-01-01'),'2028-01-02');
+  assert.equal(massDateFromPicker('2028-01-06'),'2028-01-09');
 });
 
 test('OCR retains line boundaries, stanza gaps, indents and wide word spaces',()=>{
