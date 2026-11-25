@@ -2,7 +2,8 @@ import {$} from './util.js';
 import {sundayLabel} from './dates.js';
 import {cachedReadings,fetchReadings,saveReadings} from './gospel.js';
 import {specialReadingsFor} from '../backend/special-readings.js';
-// BibleAquifer/ReinaValera1909, public-domain scripture with the liturgical verse ranges.
+// Catholic Vulgate translation by Félix Torres Amat (Barcelona, 1883–1884).
+// Spanish verses from https://edicionescatolicas.org/biblia/ without notes.
 import specialPassages from './special-mass-passages.json';
 
 // Use the Thanksgiving selection published for this date by a parish in Puerto Rico.
