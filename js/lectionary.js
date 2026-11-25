@@ -12,7 +12,10 @@ export function lectionaryFor(date){
   if(!day)return null;
   const special=specialReadingsFor(date);
   if(date==='2026-11-26'){
-    return {...special,url:'https://pacrired.org/EnC-2026-11-26',source:'Parroquia Cristo Redentor · San Juan'};
+    return {
+      ...special,url:'https://pacrired.org/EnC-2026-11-26',source:'Parroquia Cristo Redentor · San Juan',
+      secondReadingUrl:special.url,
+    };
   }
   if(date==='2026-11-29')return spanishLectionary('I Domingo de Adviento','ba1.pdf');
   // The US lectionary moves Epiphany to a Sunday. Puerto Rico keeps January 6.

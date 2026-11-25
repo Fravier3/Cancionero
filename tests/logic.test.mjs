@@ -48,7 +48,7 @@ test('The default opens the next Mass and exceptions do not repeat annually',()=
 test('Each special Mass has its own complete reading set and a liturgical source',()=>{
   const readings=JSON.parse(readFileSync(new URL('../js/special-mass-passages.json',import.meta.url),'utf8'));
   const expected={
-    '2026-11-26':['Mateo 7, 7-11',3],
+    '2026-11-26':['Mateo 7, 7-11',4],
     '2026-12-25':['Juan 1, 1-18',4],
     '2027-01-01':['Lucas 2, 16-21',4],
     '2027-01-06':['Mateo 2, 1-12',4],
@@ -62,6 +62,10 @@ test('Each special Mass has its own complete reading set and a liturgical source
     assert.match(readings[date][1].text,/^R\. /);
     assert.ok(readings[date].every(reading=>reading.text.trim().length>0));
   }
+  const second=readings['2026-11-26'][2];
+  assert.equal(second.label,'Segunda lectura');
+  assert.equal(second.title,'1 Corintios 1, 3–9');
+  assert.equal(second.text.split('\n\n').length,7);
   assert.equal(specialReadingsFor('2027-01-03'),null);
 });
 
@@ -77,6 +81,7 @@ test('Lectionary links distinguish Puerto Rico celebrations and Sunday dates',()
     '2029-01-07':'/liturgia/abautismo.pdf',
   };
   for(const [date,path] of Object.entries(paths))assert.equal(new URL(lectionaryFor(date).url).pathname,path);
+  assert.equal(new URL(lectionaryFor('2026-11-26').secondReadingUrl).pathname,'/es/bible/lecturas/112626-Thanksgiving');
   assert.equal(lectionaryFor('2027-01-03').differentCalendar,true);
   assert.equal(lectionaryFor('2027-02-29'),null);
 });

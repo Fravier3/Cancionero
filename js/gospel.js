@@ -2,8 +2,9 @@ import { esc, readStorage, writeStorage } from './util.js';
 import {formatPsalm,psalmResponse,replaceResponse} from './psalm.js';
 import {askText,toast} from './ui.js';
 import {PUBLIC_KEY,URL_BASE,call} from './api.js';
-import { sundayFor, sundayLabel } from './dates.js';
+import { massDateFor, sundayFor, sundayLabel } from './dates.js';
 import {lectionaryFor} from './lectionary.js';
+import specialPassages from './special-mass-passages.json';
 const SOURCE='https://feed.evangelizo.org/v2/reader.php';
 const KEY='cancionero.sunday-readings.v2';
 const LEGACY_WARNING='Respuesta de la asamblea no disponible en la fuente. Pulsa Actualizar lecturas para reintentar.';
@@ -116,26 +117,37 @@ export async function fetchReadings(date,{force=false,previous=cachedReadings(da
 export function initGospel({openReading,closeOtherReaders,canEdit=()=>false}){
   const root=document.querySelector('#view-gospel'),nav=document.querySelector('#gospel-reader-nav');
   const prev=document.querySelector('#gospel-prev'),next=document.querySelector('#gospel-next');
-  let data=null,token=0,index=0,opened=null,shownDate=null;
-  async function editResponse(){if(!canEdit()||!data)return;const psalm=data.readings.find(r=>r.label==='Salmo responsorial');const value=await askText({title:'Respuesta de la asamblea (R.)',message:'Esta respuesta se compartirá para este domingo. Las estrofas del lector se conservan.',value:data.psalmOverride?.response||psalmResponse(psalm.text),maxLength:500});if(!value)return;
+  let data=null,token=0,index=0,opened=null,shownDate=null,selection=null;
+  const specialDates=Object.keys(specialPassages);
+  const currentDate=()=>selection==='sunday'?sundayFor():selection||massDateFor();
+  const canEditPsalm=date=>canEdit()&&!specialPassages[date];
+  async function editResponse(){if(!data||!canEditPsalm(data.date))return;const psalm=data.readings.find(r=>r.label==='Salmo responsorial');const value=await askText({title:'Respuesta de la asamblea (R.)',message:'Esta respuesta se compartirá para este domingo. Las estrofas del lector se conservan.',value:data.psalmOverride?.response||psalmResponse(psalm.text),maxLength:500});if(!value)return;
    try{await call('psalm_response_save',{date:data.date,response:value,revision:data.psalmOverride?.revision??null});await loadOverride(data);saveReadings(data);render('Respuesta guardada para todos.');if(opened?.date===data.date&&!nav.hidden){opened=structuredClone(data);display();}toast('Respuesta del salmo guardada');}catch(error){toast(error.message,5000);}
   }
   const editButton=document.createElement('button');editButton.type='button';editButton.className='btn secondary';editButton.id='psalm-reader-edit';editButton.textContent='Editar respuesta (R.)';editButton.onclick=editResponse;nav.prepend(editButton);
   function render(message=''){
-    const date=sundayFor();
+    const date=currentDate();
+    const special=specialPassages[date];
     const lectionary=lectionaryFor(date);
     const celebration=lectionary.title||data?.celebration;
-    root.innerHTML=`<div class="section-heading"><span class="eyebrow">LITURGIA DE LA PALABRA</span><h2>Evangelio del domingo</h2><p class="sunday-label">${esc(sundayLabel(date))}</p>${celebration?`<p>${esc(celebration)}</p>`:''}</div>
+    root.innerHTML=`<div class="section-heading"><span class="eyebrow">LITURGIA DE LA PALABRA</span><h2>${special?'Evangelio y lecturas':'Evangelio del domingo'}</h2><p class="sunday-label">${esc(sundayLabel(date))}</p>${celebration?`<p>${esc(celebration)}</p>`:''}</div>
+    <div class="field"><label for="gospel-date">Celebración</label><select id="gospel-date"><option value="sunday" ${!special?'selected':''}>${esc(sundayLabel(sundayFor()))}</option>${specialDates.map(key=>`<option value="${key}" ${key===date?'selected':''}>${esc(lectionaryFor(key).title)} · ${esc(sundayLabel(key))}</option>`).join('')}</select></div>
     <a class="btn primary" href="${esc(lectionary.url)}" target="_blank" rel="noopener noreferrer">Abrir leccionario</a>
+    ${lectionary.secondReadingUrl?`<p class="note"><a href="${esc(lectionary.secondReadingUrl)}" target="_blank" rel="noopener noreferrer">Fuente de la segunda lectura · USCCB</a></p>`:''}
     <p class="readings-status" role="status">${esc(message)}</p>
-    ${canEdit()&&data?.date===date?'<button type="button" class="btn secondary" data-psalm-edit>Editar respuesta del salmo (R.)</button>':''}
+    ${canEditPsalm(date)&&data?.date===date?'<button type="button" class="btn secondary" data-psalm-edit>Editar respuesta del salmo (R.)</button>':''}
     <div class="reading-cards">${data?.date===date?data.readings.map((r,i)=>`<button class="reading-card" data-reading="${i}"><span class="reading-number">${i+1}</span><span><small>${esc(r.label)}</small><strong>${esc(r.title)}</strong><span class="reading-excerpt">${esc(r.text.slice(0,115))}…</span></span><span aria-hidden="true">›</span></button>`).join(''):''}</div>
     ${data?.date===date?'<p class="note">Toca una lectura para verla a pantalla completa. Amplía con A+ y reduce con A−.</p>':''}
-    ${lectionary.differentCalendar?'':`<div class="readings-footer"><button class="btn secondary" type="button" data-readings-refresh>Actualizar lecturas</button><p>Consulta en la app: ${data?.readingsSource?'<a href="https://bible.usccb.org/es" target="_blank" rel="noopener noreferrer">USCCB · Lecturas en español</a>':'<a href="https://www.evangeliodeldia.org/" target="_blank" rel="noopener noreferrer">Evangelizo · Evangelio del día</a>'}<br>El texto del leccionario está en el enlace de arriba.</p></div>`}`;
+    ${special?'<p class="note">Consulta sin conexión · Biblia católica Torres Amat</p>':lectionary.differentCalendar?'':`<div class="readings-footer"><button class="btn secondary" type="button" data-readings-refresh>Actualizar lecturas</button><p>Consulta en la app: ${data?.readingsSource?'<a href="https://bible.usccb.org/es" target="_blank" rel="noopener noreferrer">USCCB · Lecturas en español</a>':'<a href="https://www.evangeliodeldia.org/" target="_blank" rel="noopener noreferrer">Evangelizo · Evangelio del día</a>'}<br>El texto del leccionario está en el enlace de arriba.</p></div>`}`;
   }
   async function show(force=false){
-    const current=++token,date=sundayFor();
+    const current=++token,date=currentDate();
     shownDate=date;
+    if(specialPassages[date]){
+      data={date,readings:specialPassages[date]};
+      render();
+      return;
+    }
     if(lectionaryFor(date).differentCalendar){
       data=null;
       render('Las lecturas de esta celebración están en el leccionario.');
@@ -145,7 +157,7 @@ export function initGospel({openReading,closeOtherReaders,canEdit=()=>false}){
     data=previous;
     render(data?'Lecturas guardadas de este domingo.':'Cargando las lecturas de este domingo…');
     const result=await fetchReadings(date,{force,previous}).catch(()=>null);
-    if(current!==token||date!==sundayFor())return;
+    if(current!==token||date!==currentDate())return;
     if(!result){
       render('No se pudieron cargar las lecturas de este domingo. Pulsa Actualizar lecturas para reintentar.');
       return;
@@ -159,7 +171,7 @@ export function initGospel({openReading,closeOtherReaders,canEdit=()=>false}){
     render(message);
   }
   function display(){
-    const r=opened.readings[index];editButton.hidden=!canEdit()||r.label!=='Salmo responsorial';closeOtherReaders();
+    const r=opened.readings[index];editButton.hidden=!canEditPsalm(opened.date)||r.label!=='Salmo responsorial';closeOtherReaders();
     openReading({title:r.label,category:r.title,lyrics:r.text,source:'gospel'});
     nav.hidden=false;document.querySelector('#gospel-reader-position').textContent=`${sundayLabel(opened.date)} · ${index+1} de ${opened.readings.length}`;
     prev.disabled=index===0;next.disabled=index===opened.readings.length-1;
@@ -170,9 +182,14 @@ export function initGospel({openReading,closeOtherReaders,canEdit=()=>false}){
     const button=e.target.closest('[data-reading]');if(!button||!data)return;
     opened=structuredClone(data);index=Number(button.dataset.reading);display();
   });
+  root.addEventListener('change',e=>{
+    if(e.target.id!=='gospel-date')return;
+    selection=e.target.value;
+    show();
+  });
   prev.onclick=()=>{if(index>0){index--;display();}};next.onclick=()=>{if(index<opened.readings.length-1){index++;display();}};
-  const checkDate=()=>{if(!root.hidden&&shownDate!==sundayFor())show();};
+  const checkDate=()=>{if(!root.hidden&&shownDate!==currentDate())show();};
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkDate();});
   setInterval(checkDate,60000);
-  return {show,updateAccess:()=>{editButton.hidden=!canEdit()||opened?.readings[index]?.label!=='Salmo responsorial';if(data)render();},resetReader:()=>{nav.hidden=true;}};
+  return {show,updateAccess:()=>{editButton.hidden=!canEditPsalm(opened?.date)||opened?.readings[index]?.label!=='Salmo responsorial';if(data)render();},resetReader:()=>{nav.hidden=true;}};
 }

@@ -24,6 +24,8 @@ export function initMassReadings({getDate,getFontSize,fontSteps}){
   const source=$('#mass-readings-source');
   const sourceName=$('#mass-readings-source-name');
   const previewNote=$('#mass-readings-preview-note');
+  const secondSourceInfo=$('#mass-readings-second-source-info');
+  const secondSource=$('#mass-readings-second-source');
   let date,lectionary,readings=[],request=0,font=0,closing=false,selectedLabel='';
 
   function display({resetScroll=true}={}){
@@ -112,6 +114,8 @@ export function initMassReadings({getDate,getFontSize,fontSteps}){
     celebration.textContent=lectionary.title||'';
     source.href=lectionary.url;
     sourceName.textContent=lectionary.source;
+    secondSourceInfo.hidden=!lectionary.secondReadingUrl;
+    if(lectionary.secondReadingUrl)secondSource.href=lectionary.secondReadingUrl;
     previewNote.textContent=specialPassages[date]?'Consulta sin conexión · Biblia católica Torres Amat':'Consulta en la app · El texto del leccionario está en el enlace';
     setFont(fontSteps.indexOf(getFontSize()));
     dialog.showModal();

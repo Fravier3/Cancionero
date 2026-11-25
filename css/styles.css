@@ -1197,6 +1197,7 @@ html, body, #app, .topbar, .tabbar { background: #fff; color-scheme: only light;
 #view-add .editor-head h2 {font-size:21px;}#view-add .scan-hero {padding-top:0;}
 .sunday-label {text-transform:capitalize;font-weight:650;}
 .readings-status {color:var(--muted);font-size:13px;margin-bottom:14px;min-height:20px;}
+#view-gospel .field {margin-bottom:12px;}
 [data-psalm-edit] {margin-block-end:16px;}
 .reading-cards {display:grid;gap:12px;}
 .reading-card {width:100%;display:flex;gap:14px;align-items:center;text-align:left;border:1px solid var(--line);border-radius:16px;padding:18px 14px;background:white;color:var(--text);cursor:pointer;}
@@ -1325,7 +1326,7 @@ html,body,button,a,input,select,textarea,summary,.reader-lyrics{touch-action:pan
 
 .mass-readings-toolbar {justify-content:flex-end;}
 #mass-readings-source-info {margin-inline-end:auto;}
-#mass-readings-preview-note {margin:10px 14px 0;}
+#mass-readings-preview-note,#mass-readings-second-source-info {margin:10px 14px 0;}
 .mass-reading-choices {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:12px 14px;flex:none;}
 .mass-reading-choices:empty {display:none;}
 .mass-reading-choice {
