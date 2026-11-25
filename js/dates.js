@@ -1,4 +1,6 @@
 // Calendar dates use local noon, never UTC midnight (which can change the day).
+const specialMassDates = ['2026-11-26', '2026-12-25', '2027-01-01'];
+
 export function dateKey(d) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
@@ -13,3 +15,31 @@ export function sundayFor(date=new Date()) {
 }
 export function shiftSunday(key,weeks) {const d=parseDate(key);d.setDate(d.getDate()+weeks*7);return dateKey(d);}
 export function sundayLabel(key) {return parseDate(key)?.toLocaleDateString('es-PR',{weekday:'long',day:'numeric',month:'long',year:'numeric'})||key;}
+
+export function isSpecialMassDate(key) {
+  return specialMassDates.includes(key);
+}
+
+export function massDateFor(date=new Date()) {
+  const today=dateKey(date), sunday=sundayFor(date);
+  return specialMassDates.find(key=>key>=today&&key<sunday)??sunday;
+}
+
+export function massDateFromPicker(key) {
+  if(isSpecialMassDate(key))return key;
+  const date=parseDate(key);
+  return date?sundayFor(date):null;
+}
+
+export function adjacentMassDate(key,direction) {
+  const date=parseDate(key);
+  date.setDate(date.getDate()+direction);
+  if(direction===1)return massDateFor(date);
+
+  const end=dateKey(date);
+  date.setDate(date.getDate()-date.getDay());
+  const sunday=dateKey(date);
+  let previous=sunday;
+  for(const day of specialMassDates)if(day<=end&&day>previous)previous=day;
+  return previous;
+}

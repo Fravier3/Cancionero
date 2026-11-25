@@ -15,7 +15,7 @@ function plain(text){
 }
 export function parseReadings(xml,date){
   const doc=new DOMParser().parseFromString(xml,'application/xml');
-  if(doc.querySelector('parsererror')||doc.querySelector('date')?.textContent!==date.replaceAll('-',''))throw new Error('La fuente no devolvió las lecturas de este domingo.');
+  if(doc.querySelector('parsererror')||doc.querySelector('date')?.textContent!==date.replaceAll('-',''))throw new Error('La fuente no devolvió las lecturas de esta fecha.');
   const readings=FIELDS.map(([key,label])=>({label,title:plain(doc.querySelector(key+'_lt')?.textContent||''),text:plain(doc.querySelector(key)?.textContent||'')})).filter(r=>r.text);
   if(!readings.some(r=>r.label==='Evangelio')||!readings.some(r=>r.label==='Primera lectura')||!readings.some(r=>r.label==='Salmo responsorial'))throw new Error('Las lecturas todavía no están completas.');
   return {date,celebration:plain(doc.querySelector('litugic_t')?.textContent||''),readings,savedAt:Date.now()};

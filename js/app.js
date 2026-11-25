@@ -18,7 +18,7 @@ import { initAccess } from './access.js';
 import { initGospel } from './gospel.js';
 import { initMassReadings } from './mass-readings.js';
 import { fetchMass } from './shared-mass.js';
-import { sundayFor } from './dates.js';
+import { massDateFor } from './dates.js';
 import {renderMusic,rebaseChords,keyLabel,keyFromChoice,CHORD_CHOICES,blankKey,initMusicEditor} from './music.js';
 import {initRecognition,recognizePhoto,clearPhoto,getPhoto,applyEnginePreference} from './recognition.js';
 import {call} from './api.js';
@@ -163,14 +163,14 @@ function mergeSongs(){
 let sharedLoading=false,lastSharedDate=null,lastSharedRecord;
 async function syncSharedSongs(){
   if(sharedLoading)return;sharedLoading=true;
-  const date=sundayFor();
+  const date=massDateFor();
   try{
     let record;
     let fetched=false;
     const known=lastSharedDate===date?lastSharedRecord:undefined;
     try{record=await fetchMass(date,{known});fetched=true;}
     catch{const saved=await store.db.masses.get(date);record=saved?.revision?saved:null;}
-    if(date!==sundayFor())return;
+    if(date!==massDateFor())return;
     if(lastSharedDate===date&&(record===known||!fetched))return;
     if(fetched&&record)await store.db.masses.put(record).catch(()=>{});
     lastSharedDate=date;

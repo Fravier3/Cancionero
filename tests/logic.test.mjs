@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { sundayFor, shiftSunday, parseDate } from '../js/dates.js';
+import { sundayFor, shiftSunday, parseDate, massDateFor, massDateFromPicker, adjacentMassDate } from '../js/dates.js';
 import { layoutLyrics } from '../js/ocr-layout.js';
 
 test('Saturday preparation and Sunday use resolve to the same date',()=>{
@@ -9,6 +9,33 @@ test('Saturday preparation and Sunday use resolve to the same date',()=>{
   assert.equal(sundayFor(new Date(2026,10,2,0)), '2026-11-08');
   assert.equal(shiftSunday('2026-12-27',1),'2027-01-03');
   assert.equal(parseDate('2026-02-30'),null);
+});
+
+test('Special Mass dates are selectable and sit between the surrounding Sundays',()=>{
+  const celebrations=[
+    ['2026-11-22','2026-11-26','2026-11-29'],
+    ['2026-12-20','2026-12-25','2026-12-27'],
+    ['2026-12-27','2027-01-01','2027-01-03'],
+  ];
+  for(const [before,special,after] of celebrations){
+    assert.equal(massDateFromPicker(special),special);
+    assert.equal(adjacentMassDate(before,1),special);
+    assert.equal(adjacentMassDate(special,1),after);
+    assert.equal(adjacentMassDate(after,-1),special);
+    assert.equal(adjacentMassDate(special,-1),before);
+    assert.equal(massDateFor(parseDate(special)),special);
+    assert.equal(massDateFor(parseDate(before)),before);
+    assert.equal(massDateFor(parseDate(after)),after);
+  }
+});
+
+test('The default opens the next Mass and exceptions do not repeat annually',()=>{
+  assert.equal(massDateFor(parseDate('2026-11-25')),'2026-11-26');
+  assert.equal(massDateFor(parseDate('2026-11-27')),'2026-11-29');
+  assert.equal(massDateFromPicker('2026-11-25'),'2026-11-29');
+  assert.equal(massDateFromPicker('2026-02-30'),null);
+  assert.equal(massDateFromPicker('2027-12-25'),'2027-12-26');
+  assert.equal(massDateFromPicker('2028-01-01'),'2028-01-02');
 });
 
 test('OCR retains line boundaries, stanza gaps, indents and wide word spaces',()=>{
