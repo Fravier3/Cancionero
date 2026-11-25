@@ -1,12 +1,14 @@
 import {ApiError,body,reply,rpc,tokenOf,digest,hex} from './common.ts';
+import {specialReadingsFor} from './special-readings.js';
 Deno.serve(async req=>{
  if(req.method==='OPTIONS')return reply(req,{ok:true});
  try{
   const input=await body(req);const action=input.action;
   if(action==='readings'){
    const date=input.data?.date;if(typeof date!=='string'||!/^20\d{2}-\d{2}-\d{2}$/.test(date)||Number.isNaN(Date.parse(date)))throw new ApiError('Fecha inválida.');
-   const code=date.slice(5,7)+date.slice(8,10)+date.slice(2,4),url=`https://bible.usccb.org/es/bible/lecturas/${code}.cfm`;
-   const response=await fetch(url,{signal:AbortSignal.timeout(15000)});if(!response.ok)throw new ApiError('No se pudo consultar el salmo.',502);
+   const special=specialReadingsFor(date);
+   const code=date.slice(5,7)+date.slice(8,10)+date.slice(2,4),url=special?.url??`https://bible.usccb.org/es/bible/lecturas/${code}.cfm`;
+   const response=await fetch(url,{signal:AbortSignal.timeout(15000)});if(!response.ok)throw new ApiError('No se pudieron consultar las lecturas.',502);
    const html=await response.text();
    const sections=html.split(/<h3[^>]*>/i).slice(1);
    const headings=['Primera lectura','Salmo responsorial','Segunda lectura','Evangelio'];
@@ -17,7 +19,7 @@ Deno.serve(async req=>{
     return content?[{label,content,reference}]:[];
    });
    const psalm=readings.find(reading=>reading.label==='Salmo responsorial');
-   if(!readings.length)throw new ApiError('No se encontraron las lecturas de esta fecha.',502);
+   if(special?readings.length!==headings.length:!readings.length)throw new ApiError('No se encontraron las lecturas de esta fecha.',502);
    return reply(req,{date,html:psalm?.content,reference:psalm?.reference,url,readings});
   }
   if(action==='login'){

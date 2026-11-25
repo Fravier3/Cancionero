@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { sundayFor, shiftSunday, parseDate, massDateFor, massDateFromPicker, adjacentMassDate } from '../js/dates.js';
+import {readFileSync} from 'node:fs';
+import { sundayFor, shiftSunday, parseDate, massDateFor, massDateFromPicker, adjacentMassDate, isSpecialMassDate } from '../js/dates.js';
+import {specialReadingsFor} from '../backend/special-readings.js';
 import { layoutLyrics } from '../js/ocr-layout.js';
 
 test('Saturday preparation and Sunday use resolve to the same date',()=>{
@@ -40,6 +42,26 @@ test('The default opens the next Mass and exceptions do not repeat annually',()=
   assert.equal(massDateFromPicker('2027-12-25'),'2027-12-26');
   assert.equal(massDateFromPicker('2028-01-01'),'2028-01-02');
   assert.equal(massDateFromPicker('2028-01-06'),'2028-01-09');
+});
+
+test('Each special Mass has its own complete reading set and a liturgical source',()=>{
+  const readings=JSON.parse(readFileSync(new URL('../js/special-mass-passages.json',import.meta.url),'utf8'));
+  const expected={
+    '2026-11-26':['Mateo 7, 7-11',3],
+    '2026-12-25':['Juan 1, 1-18',4],
+    '2027-01-01':['Lucas 2, 16-21',4],
+    '2027-01-06':['Mateo 2, 1-12',4],
+  };
+  assert.deepEqual(Object.keys(readings),Object.keys(expected));
+  for(const [date,[gospel,count]] of Object.entries(expected)){
+    assert.ok(isSpecialMassDate(date));
+    assert.ok(specialReadingsFor(date)?.url);
+    assert.equal(readings[date].length,count);
+    assert.equal(readings[date].at(-1).title,gospel);
+    assert.match(readings[date][1].text,/^R\. /);
+    assert.ok(readings[date].every(reading=>reading.text.trim().length>0));
+  }
+  assert.equal(specialReadingsFor('2027-01-03'),null);
 });
 
 test('OCR retains line boundaries, stanza gaps, indents and wide word spaces',()=>{

@@ -1065,9 +1065,9 @@ function bindEvents() {
   $('#rd-edit').addEventListener('click', editFromReader);
   $('#rd-delete').addEventListener('click', deleteFromReader);
   window.addEventListener('popstate', event => {
-    if (massReadings.isOpen() && event.state?.reader) {
+    if (massReadings.isOpen()) {
       massReadings.close();
-      return;
+      if (event.state?.reader || el.reader.hidden) return;
     }
     closeReader({ fromPop: true });
   });
@@ -1170,7 +1170,7 @@ function applyAccess(){
   renderLibrary();
   applyView({resetScroll:false});
 }
-const mass = initMass({ getSongs: () => state.localSongs, categoryName: catName, closeSong: closeReader, syncSongs: store.syncLibrary, openSong: (song, refresh, gloria)=>{gospel.resetReader();displaySong(song, true, refresh, gloria);}, canEdit:()=>access.isEditor() });
+const mass = initMass({ getSongs: () => state.localSongs, categoryName: catName, closeSong: closeReader, syncSongs: store.syncLibrary, openReadings: date=>massReadings.open(date), openSong: (song, refresh, gloria)=>{gospel.resetReader();displaySong(song, true, refresh, gloria);}, canEdit:()=>access.isEditor() });
 const massReadings = initMassReadings({getDate:mass.getReadingDate,getFontSize:currentFontSize,fontSteps:FONT_STEPS});
 const gospel = initGospel({canEdit:()=>access.isEditor(),openReading:displaySong,closeOtherReaders:()=>mass.resetReader()});
 const access = initAccess({onChange:(_role,{restored=false}={})=>{applyAccess();if(!restored)closeReader();},beforeChange:async()=>{

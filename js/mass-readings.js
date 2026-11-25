@@ -1,6 +1,12 @@
 import {$} from './util.js';
 import {sundayLabel} from './dates.js';
 import {cachedReadings,fetchReadings,saveReadings} from './gospel.js';
+import {specialReadingsFor} from '../backend/special-readings.js';
+// BibleAquifer/ReinaValera1909, public-domain scripture with the liturgical verse ranges.
+import specialPassages from './special-mass-passages.json';
+
+// Use the Thanksgiving selection published for this date by a parish in Puerto Rico.
+const thanksgivingSource='https://pacrired.org/EnC-2026-11-26';
 
 export function initMassReadings({getDate,getFontSize,fontSteps}){
   const dialog=$('#mass-readings');
@@ -16,6 +22,9 @@ export function initMassReadings({getDate,getFontSize,fontSteps}){
   const smaller=$('#mass-readings-smaller');
   const bigger=$('#mass-readings-bigger');
   const retry=$('#mass-readings-retry');
+  const celebration=$('#mass-readings-celebration');
+  const sourceInfo=$('#mass-readings-source-info');
+  const source=$('#mass-readings-source');
   let date,readings=[],request=0,font=0,closing=false,selectedLabel='';
 
   function display({resetScroll=true}={}){
@@ -56,6 +65,13 @@ export function initMassReadings({getDate,getFontSize,fontSteps}){
 
   async function load(force=false){
     const token=++request;
+    const passages=specialPassages[date];
+    if(passages){
+      setReadings({readings:passages});
+      setStatus('');
+      retry.hidden=true;
+      return;
+    }
     const previous=cachedReadings(date);
     if(!force)setReadings(previous);
     retry.hidden=true;
@@ -80,11 +96,15 @@ export function initMassReadings({getDate,getFontSize,fontSteps}){
     bigger.disabled=font===fontSteps.length-1;
   }
 
-  function open(){
-    date=getDate();
-    if(!date||dialog.open)return;
+  function open(target){
+    if(!target||dialog.open)return;
+    date=target;
     closing=false;
     $('#mass-readings-date').textContent=sundayLabel(date);
+    const special=specialReadingsFor(date);
+    celebration.textContent=special?.title||'';
+    sourceInfo.hidden=!special;
+    if(special)source.href=date==='2026-11-26'?thanksgivingSource:special.url;
     setFont(fontSteps.indexOf(getFontSize()));
     dialog.showModal();
     history.pushState({...history.state,massReadings:true},'');
@@ -114,7 +134,7 @@ export function initMassReadings({getDate,getFontSize,fontSteps}){
     display();
   }
 
-  opener.onclick=open;
+  opener.onclick=()=>open(getDate());
   $('#mass-readings-close').onclick=dismiss;
   dialog.addEventListener('cancel',event=>{event.preventDefault();dismiss();});
   prev.onclick=()=>step(-1);
@@ -123,5 +143,5 @@ export function initMassReadings({getDate,getFontSize,fontSteps}){
   bigger.onclick=()=>setFont(font+1);
   retry.onclick=()=>load(true);
 
-  return {isOpen:()=>dialog.open,close};
+  return {open,isOpen:()=>dialog.open,close};
 }
