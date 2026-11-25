@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import { sundayFor, shiftSunday, parseDate, massDateFor, massDateFromPicker, adjacentMassDate, isSpecialMassDate } from '../js/dates.js';
 import {specialReadingsFor} from '../backend/special-readings.js';
+import {lectionaryFor} from '../js/lectionary.js';
 import { layoutLyrics } from '../js/ocr-layout.js';
 
 test('Saturday preparation and Sunday use resolve to the same date',()=>{
@@ -62,6 +63,22 @@ test('Each special Mass has its own complete reading set and a liturgical source
     assert.ok(readings[date].every(reading=>reading.text.trim().length>0));
   }
   assert.equal(specialReadingsFor('2027-01-03'),null);
+});
+
+test('Lectionary links distinguish Puerto Rico celebrations and Sunday dates',()=>{
+  const paths={
+    '2026-11-26':'/EnC-2026-11-26',
+    '2026-11-29':'/liturgia/ba1.pdf',
+    '2026-12-25':'/es/bible/lecturas/122526-Day.cfm',
+    '2026-12-27':'/es/bible/lecturas/122726.cfm',
+    '2027-01-01':'/es/bible/lecturas/010127.cfm',
+    '2027-01-03':'/liturgia/an2.pdf',
+    '2027-01-06':'/liturgia/bepifania.pdf',
+    '2029-01-07':'/liturgia/abautismo.pdf',
+  };
+  for(const [date,path] of Object.entries(paths))assert.equal(new URL(lectionaryFor(date).url).pathname,path);
+  assert.equal(lectionaryFor('2027-01-03').differentCalendar,true);
+  assert.equal(lectionaryFor('2027-02-29'),null);
 });
 
 test('OCR retains line boundaries, stanza gaps, indents and wide word spaces',()=>{

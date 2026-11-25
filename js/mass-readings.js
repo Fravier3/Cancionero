@@ -1,13 +1,10 @@
 import {$} from './util.js';
 import {sundayLabel} from './dates.js';
 import {cachedReadings,fetchReadings,saveReadings} from './gospel.js';
-import {specialReadingsFor} from '../backend/special-readings.js';
+import {lectionaryFor} from './lectionary.js';
 // Catholic Vulgate translation by Félix Torres Amat (Barcelona, 1883–1884).
 // Spanish verses from https://edicionescatolicas.org/biblia/ without notes.
 import specialPassages from './special-mass-passages.json';
-
-// Use the Thanksgiving selection published for this date by a parish in Puerto Rico.
-const thanksgivingSource='https://pacrired.org/EnC-2026-11-26';
 
 export function initMassReadings({getDate,getFontSize,fontSteps}){
   const dialog=$('#mass-readings');
@@ -24,9 +21,10 @@ export function initMassReadings({getDate,getFontSize,fontSteps}){
   const bigger=$('#mass-readings-bigger');
   const retry=$('#mass-readings-retry');
   const celebration=$('#mass-readings-celebration');
-  const sourceInfo=$('#mass-readings-source-info');
   const source=$('#mass-readings-source');
-  let date,readings=[],request=0,font=0,closing=false,selectedLabel='';
+  const sourceName=$('#mass-readings-source-name');
+  const previewNote=$('#mass-readings-preview-note');
+  let date,lectionary,readings=[],request=0,font=0,closing=false,selectedLabel='';
 
   function display({resetScroll=true}={}){
     const index=readings.findIndex(reading=>reading.label===selectedLabel);
@@ -45,6 +43,7 @@ export function initMassReadings({getDate,getFontSize,fontSteps}){
   function setReadings(result,{preserve=false}={}){
     const selected=preserve?selectedLabel:'';
     readings=result?.readings||[];
+    previewNote.hidden=!readings.length;
     selectedLabel=readings.some(reading=>reading.label===selected)?selected:'';
     choice.replaceChildren(...readings.map(reading=>{
       const button=document.createElement('button');
@@ -73,6 +72,12 @@ export function initMassReadings({getDate,getFontSize,fontSteps}){
       retry.hidden=true;
       return;
     }
+    if(lectionary.differentCalendar){
+      setReadings(null);
+      retry.hidden=true;
+      setStatus('Las lecturas de esta celebración están en el leccionario.');
+      return;
+    }
     const previous=cachedReadings(date);
     if(!force)setReadings(previous);
     retry.hidden=true;
@@ -99,13 +104,15 @@ export function initMassReadings({getDate,getFontSize,fontSteps}){
 
   function open(target){
     if(!target||dialog.open)return;
+    lectionary=lectionaryFor(target);
+    if(!lectionary)return;
     date=target;
     closing=false;
     $('#mass-readings-date').textContent=sundayLabel(date);
-    const special=specialReadingsFor(date);
-    celebration.textContent=special?.title||'';
-    sourceInfo.hidden=!special;
-    if(special)source.href=date==='2026-11-26'?thanksgivingSource:special.url;
+    celebration.textContent=lectionary.title||'';
+    source.href=lectionary.url;
+    sourceName.textContent=lectionary.source;
+    previewNote.textContent=specialPassages[date]?'Consulta sin conexión · Biblia católica Torres Amat':'Consulta en la app · El texto del leccionario está en el enlace';
     setFont(fontSteps.indexOf(getFontSize()));
     dialog.showModal();
     history.pushState({...history.state,massReadings:true},'');

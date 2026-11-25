@@ -211,15 +211,16 @@
       <button id="mass-readings-close" class="btn secondary" type="button" autofocus>Cerrar</button>
     </header>
     <div class="mass-readings-toolbar">
-      <div id="mass-readings-source-info" hidden>
-        <a id="mass-readings-source" href="https://bible.usccb.org/es" target="_blank" rel="noopener noreferrer">Texto litúrgico</a>
-        <p class="note">Biblia católica · Torres Amat</p>
+      <div id="mass-readings-source-info">
+        <a id="mass-readings-source" class="btn primary" href="https://bible.usccb.org/es" target="_blank" rel="noopener noreferrer">Abrir leccionario</a>
+        <p id="mass-readings-source-name" class="note"></p>
       </div>
       <div class="reader-actions">
         <button id="mass-readings-smaller" class="size-btn" type="button" aria-label="Letra de la lectura más pequeña">A<small>−</small></button>
         <button id="mass-readings-bigger" class="size-btn" type="button" aria-label="Letra de la lectura más grande">A<small>+</small></button>
       </div>
     </div>
+    <p id="mass-readings-preview-note" class="note" hidden></p>
     <p id="mass-readings-status" class="mass-readings-status" role="status" hidden></p>
     <div id="mass-readings-choice" class="mass-reading-choices" role="group" aria-label="Elige una lectura"></div>
     <article id="mass-reading-scroll" class="mass-reading-scroll" tabindex="0" aria-label="Texto de la lectura">

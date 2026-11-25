@@ -3,6 +3,7 @@ import {formatPsalm,psalmResponse,replaceResponse} from './psalm.js';
 import {askText,toast} from './ui.js';
 import {PUBLIC_KEY,URL_BASE,call} from './api.js';
 import { sundayFor, sundayLabel } from './dates.js';
+import {lectionaryFor} from './lectionary.js';
 const SOURCE='https://feed.evangelizo.org/v2/reader.php';
 const KEY='cancionero.sunday-readings.v2';
 const LEGACY_WARNING='Respuesta de la asamblea no disponible en la fuente. Pulsa Actualizar lecturas para reintentar.';
@@ -115,22 +116,32 @@ export async function fetchReadings(date,{force=false,previous=cachedReadings(da
 export function initGospel({openReading,closeOtherReaders,canEdit=()=>false}){
   const root=document.querySelector('#view-gospel'),nav=document.querySelector('#gospel-reader-nav');
   const prev=document.querySelector('#gospel-prev'),next=document.querySelector('#gospel-next');
-  let data=null,token=0,index=0,opened=null;
+  let data=null,token=0,index=0,opened=null,shownDate=null;
   async function editResponse(){if(!canEdit()||!data)return;const psalm=data.readings.find(r=>r.label==='Salmo responsorial');const value=await askText({title:'Respuesta de la asamblea (R.)',message:'Esta respuesta se compartirá para este domingo. Las estrofas del lector se conservan.',value:data.psalmOverride?.response||psalmResponse(psalm.text),maxLength:500});if(!value)return;
    try{await call('psalm_response_save',{date:data.date,response:value,revision:data.psalmOverride?.revision??null});await loadOverride(data);saveReadings(data);render('Respuesta guardada para todos.');if(opened?.date===data.date&&!nav.hidden){opened=structuredClone(data);display();}toast('Respuesta del salmo guardada');}catch(error){toast(error.message,5000);}
   }
   const editButton=document.createElement('button');editButton.type='button';editButton.className='btn secondary';editButton.id='psalm-reader-edit';editButton.textContent='Editar respuesta (R.)';editButton.onclick=editResponse;nav.prepend(editButton);
   function render(message=''){
     const date=sundayFor();
-    root.innerHTML=`<div class="section-heading"><span class="eyebrow">LITURGIA DE LA PALABRA</span><h2>Evangelio del domingo</h2><p class="sunday-label">${esc(sundayLabel(date))}</p>${data?.celebration?`<p>${esc(data.celebration)}</p>`:''}</div>
+    const lectionary=lectionaryFor(date);
+    const celebration=lectionary.title||data?.celebration;
+    root.innerHTML=`<div class="section-heading"><span class="eyebrow">LITURGIA DE LA PALABRA</span><h2>Evangelio del domingo</h2><p class="sunday-label">${esc(sundayLabel(date))}</p>${celebration?`<p>${esc(celebration)}</p>`:''}</div>
+    <a class="btn primary" href="${esc(lectionary.url)}" target="_blank" rel="noopener noreferrer">Abrir leccionario</a>
     <p class="readings-status" role="status">${esc(message)}</p>
     ${canEdit()&&data?.date===date?'<button type="button" class="btn secondary" data-psalm-edit>Editar respuesta del salmo (R.)</button>':''}
     <div class="reading-cards">${data?.date===date?data.readings.map((r,i)=>`<button class="reading-card" data-reading="${i}"><span class="reading-number">${i+1}</span><span><small>${esc(r.label)}</small><strong>${esc(r.title)}</strong><span class="reading-excerpt">${esc(r.text.slice(0,115))}…</span></span><span aria-hidden="true">›</span></button>`).join(''):''}</div>
     ${data?.date===date?'<p class="note">Toca una lectura para verla a pantalla completa. Amplía con A+ y reduce con A−.</p>':''}
-    <div class="readings-footer"><button class="btn secondary" type="button" data-readings-refresh>Actualizar lecturas</button><p>Fuente: ${data?.readingsSource?'<a href="https://bible.usccb.org/es" target="_blank" rel="noopener noreferrer">USCCB · Lecturas en español</a>':'<a href="https://www.evangeliodeldia.org/" target="_blank" rel="noopener noreferrer">Evangelizo · Evangelio del día</a>'}<br>Salmo responsorial: USCCB (leccionario de México; puede variar en tu parroquia).<br>Calendario romano ordinario · Español</p></div>`;
+    ${lectionary.differentCalendar?'':`<div class="readings-footer"><button class="btn secondary" type="button" data-readings-refresh>Actualizar lecturas</button><p>Consulta en la app: ${data?.readingsSource?'<a href="https://bible.usccb.org/es" target="_blank" rel="noopener noreferrer">USCCB · Lecturas en español</a>':'<a href="https://www.evangeliodeldia.org/" target="_blank" rel="noopener noreferrer">Evangelizo · Evangelio del día</a>'}<br>El texto del leccionario está en el enlace de arriba.</p></div>`}`;
   }
   async function show(force=false){
-    const current=++token,date=sundayFor(),previous=cachedReadings(date);
+    const current=++token,date=sundayFor();
+    shownDate=date;
+    if(lectionaryFor(date).differentCalendar){
+      data=null;
+      render('Las lecturas de esta celebración están en el leccionario.');
+      return;
+    }
+    const previous=cachedReadings(date);
     data=previous;
     render(data?'Lecturas guardadas de este domingo.':'Cargando las lecturas de este domingo…');
     const result=await fetchReadings(date,{force,previous}).catch(()=>null);
@@ -160,7 +171,7 @@ export function initGospel({openReading,closeOtherReaders,canEdit=()=>false}){
     opened=structuredClone(data);index=Number(button.dataset.reading);display();
   });
   prev.onclick=()=>{if(index>0){index--;display();}};next.onclick=()=>{if(index<opened.readings.length-1){index++;display();}};
-  const checkDate=()=>{if(!root.hidden&&data?.date!==sundayFor())show();};
+  const checkDate=()=>{if(!root.hidden&&shownDate!==sundayFor())show();};
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkDate();});
   setInterval(checkDate,60000);
   return {show,updateAccess:()=>{editButton.hidden=!canEdit()||opened?.readings[index]?.label!=='Salmo responsorial';if(data)render();},resetReader:()=>{nav.hidden=true;}};
