@@ -52,7 +52,7 @@ test('The default opens the next Mass and exceptions do not repeat annually',()=
 test('Each special Mass has its own complete reading set and a liturgical source',()=>{
   const readings=JSON.parse(readFileSync(new URL('../js/special-mass-passages.json',import.meta.url),'utf8'));
   const expected={
-    '2026-11-26':['Mateo 7, 7-11',4],
+    '2026-11-26':['Lucas 17, 11-19',4],
     '2026-12-25':['Juan 1, 1-18',4],
     '2027-01-01':['Lucas 2, 16-21',4],
     '2027-01-06':['Mateo 2, 1-12',4],
@@ -66,7 +66,15 @@ test('Each special Mass has its own complete reading set and a liturgical source
     assert.match(readings[date][1].text,/^R\. /);
     assert.ok(readings[date].every(reading=>reading.text.trim().length>0));
   }
-  const second=readings['2026-11-26'][2];
+  const [first,psalm,second,gospel]=readings['2026-11-26'];
+  assert.equal(first.title,'Sirácida 50, 24-26');
+  assert.equal(first.text.split('\n\n').length,3);
+  assert.equal(psalm.title,'Salmo 144, 2-3. 4-5. 6-7. 8-9. 10-11');
+  const psalmParts=psalm.text.split('\n\n');
+  assert.equal(psalmParts.length,11);
+  assert.ok(psalmParts.filter((_,i)=>i%2===0).every(part=>part==='R. Bendeciré al Señor eternamente.'));
+  assert.ok(psalmParts.filter((_,i)=>i%2===1).every(part=>part.split('\n').length===2));
+  assert.equal(gospel.text.split('\n\n').length,9);
   assert.equal(second.label,'Segunda lectura');
   assert.equal(second.title,'1 Corintios 1, 3–9');
   assert.equal(second.text.split('\n\n').length,7);
@@ -75,7 +83,7 @@ test('Each special Mass has its own complete reading set and a liturgical source
 
 test('Lectionary links distinguish Puerto Rico celebrations and Sunday dates',()=>{
   const paths={
-    '2026-11-26':'/EnC-2026-11-26',
+    '2026-11-26':'/es/bible/lecturas/112626-Thanksgiving',
     '2026-11-29':'/liturgia/ba1.pdf',
     '2026-12-25':'/es/bible/lecturas/122526-Day.cfm',
     '2026-12-27':'/es/bible/lecturas/122726.cfm',
