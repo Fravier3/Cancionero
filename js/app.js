@@ -734,7 +734,7 @@ function displaySong(song, fromMass = false, refresh = false, gloria = null) {
   el.rdCat.textContent = catName(song);
   state.readerSong=song;
   state.readerGloria=gloria;
-  renderReaderMusic();
+  renderReaderMusic({preserveScroll:refresh});
   const audioRoot = $('#rd-audio');
   const librarySong = state.localSongs.find(s => String(s.id) === String(song.songId || song.id));
   if (fromMass) {
@@ -754,26 +754,35 @@ function displaySong(song, fromMass = false, refresh = false, gloria = null) {
 
 function applyGloriaLayout() {
   const columns = Boolean(state.readerGloria) && $('#mass-gloria-layout').value === 'columns';
+  const enteringColumns = columns && !el.rdScroll.classList.contains('reader-columns');
   el.rdScroll.classList.toggle('reader-columns', columns);
+  if (enteringColumns) el.rdScroll.scrollTop = 0;
+  el.rdLyrics.querySelectorAll('.reader-song-pair > section').forEach(section => {
+    if (columns) section.tabIndex = 0;
+    else section.removeAttribute('tabindex');
+  });
 }
 
-function renderReaderMusic() {
+function renderReaderMusic({preserveScroll = true} = {}) {
   const song = state.readerSong;
   if (!song) return;
   const show = readStorage('cancionero.show-chords', '1') === '1';
   $('#show-chords').checked = show;
   const gloria = state.readerGloria;
-  applyGloriaLayout();
   const lyrics = renderMusic(song.lyrics, song.chords || [], show);
   if (!gloria) {
     el.rdLyrics.innerHTML = lyrics;
+    applyGloriaLayout();
     return;
   }
+  const scrollPositions = preserveScroll && el.rdScroll.classList.contains('reader-columns')
+    ? [...el.rdLyrics.querySelectorAll('.reader-song-pair > section')].map(section => section.scrollTop)
+    : [];
   const title = (gloria.number ? gloria.number + ' · ' : '') + (gloria.title || 'Gloria');
   const key = keyLabel(gloria.key);
   el.rdLyrics.innerHTML = `<div class="reader-song-pair">
-    <section class="reader-piedad">
-      <h3>${esc(el.rdTitle.textContent)}</h3>
+    <section class="reader-piedad" aria-labelledby="rd-piedad-title">
+      <h3 id="rd-piedad-title">${esc(el.rdTitle.textContent)}</h3>
       <div class="reader-song-text">${lyrics}</div>
     </section>
     <section class="reader-gloria" aria-labelledby="rd-gloria-title">
@@ -782,6 +791,10 @@ function renderReaderMusic() {
       <div class="reader-song-text">${renderMusic(gloria.lyrics, gloria.chords || [], show)}</div>
     </section>
   </div>`;
+  applyGloriaLayout();
+  el.rdLyrics.querySelectorAll('.reader-columns .reader-song-pair > section').forEach((section, index) => {
+    section.scrollTop = scrollPositions[index] ?? 0;
+  });
 }
 
 async function closeReader({ fromPop = false, refreshMass = true } = {}) {
