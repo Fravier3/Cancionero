@@ -35,7 +35,11 @@ test('Special Mass dates are selectable and sit between the surrounding Sundays'
 
 test('The default opens the next Mass and exceptions do not repeat annually',()=>{
   assert.equal(massDateFor(parseDate('2026-11-25')),'2026-11-26');
+  assert.equal(massDateFor(new Date(2026,10,26,23,59)),'2026-11-26');
+  assert.equal(massDateFor(new Date(2026,10,27,0,0)),'2026-11-29');
   assert.equal(massDateFor(parseDate('2026-11-27')),'2026-11-29');
+  assert.equal(massDateFor(new Date(2026,11,24,23,59)),'2026-12-25');
+  assert.equal(massDateFor(new Date(2026,11,26,0,0)),'2026-12-27');
   assert.equal(massDateFor(parseDate('2027-01-05')),'2027-01-06');
   assert.equal(massDateFor(parseDate('2027-01-07')),'2027-01-10');
   assert.equal(massDateFromPicker('2026-11-25'),'2026-11-29');
@@ -81,7 +85,6 @@ test('Lectionary links distinguish Puerto Rico celebrations and Sunday dates',()
     '2029-01-07':'/liturgia/abautismo.pdf',
   };
   for(const [date,path] of Object.entries(paths))assert.equal(new URL(lectionaryFor(date).url).pathname,path);
-  assert.equal(new URL(lectionaryFor('2026-11-26').secondReadingUrl).pathname,'/es/bible/lecturas/112626-Thanksgiving');
   assert.equal(lectionaryFor('2027-01-03').differentCalendar,true);
   assert.equal(lectionaryFor('2027-02-29'),null);
 });

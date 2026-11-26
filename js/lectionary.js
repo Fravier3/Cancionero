@@ -4,7 +4,7 @@ import {specialReadingsFor} from '../backend/special-readings.js';
 const usccb='https://bible.usccb.org/es/bible/lecturas/';
 const episcopal='https://www.conferenciaepiscopal.es/liturgia/';
 const spanishLectionary=(title,file)=>({
-  title,url:episcopal+file,source:'Conferencia Episcopal Española',
+  title,url:episcopal+file,
 });
 
 export function lectionaryFor(date){
@@ -12,10 +12,7 @@ export function lectionaryFor(date){
   if(!day)return null;
   const special=specialReadingsFor(date);
   if(date==='2026-11-26'){
-    return {
-      ...special,url:'https://pacrired.org/EnC-2026-11-26',source:'Parroquia Cristo Redentor · San Juan',
-      secondReadingUrl:special.url,
-    };
+    return {...special,url:'https://pacrired.org/EnC-2026-11-26'};
   }
   if(date==='2026-11-29')return spanishLectionary('I Domingo de Adviento','ba1.pdf');
   // The US lectionary moves Epiphany to a Sunday. Puerto Rico keeps January 6.
@@ -32,10 +29,9 @@ export function lectionaryFor(date){
       return {...spanishLectionary('Bautismo del Señor',cycle+'bautismo.pdf'),differentCalendar:true};
     }
   }
-  if(special)return {...special,source:'Conferencia de Obispos Católicos de EE. UU.'};
+  if(special)return special;
   const [year,month,dayOfMonth]=date.split('-');
   return {
     url:`${usccb}${month}${dayOfMonth}${year.slice(2)}.cfm`,
-    source:'Conferencia de Obispos Católicos de EE. UU.',
   };
 }
