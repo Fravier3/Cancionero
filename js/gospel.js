@@ -8,8 +8,8 @@ import {lectionaryFor} from './lectionary.js';
 import specialPassages from './special-mass-passages.json';
 const SOURCE='https://feed.evangelizo.org/v2/reader.php';
 const KEY='cancionero.sunday-readings.v2';
-// Thanksgiving now uses Psalm 144 instead of 1 Chronicles 29.
-const specialResponseKey=date=>`cancionero.special-psalm-response.${date==='2026-11-26'?'v2':'v1'}.${date}`;
+// Invalidate the cached refrain when restoring the Thanksgiving readings.
+const specialResponseKey=date=>`cancionero.special-psalm-response.${date==='2026-11-26'?'v3':'v1'}.${date}`;
 const LEGACY_WARNING='Respuesta de la asamblea no disponible en la fuente. Pulsa Actualizar lecturas para reintentar.';
 const MAX_AGE=6*3600000;
 const getPsalm=result=>result?.readings.find(r=>r.label==='Salmo responsorial');
