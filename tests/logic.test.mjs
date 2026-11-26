@@ -67,8 +67,8 @@ test('Each special Mass has its own complete reading set and a liturgical source
     assert.ok(readings[date].every(reading=>reading.text.trim().length>0));
   }
   const [first,psalm,second,gospel]=readings['2026-11-26'];
-  assert.equal(first.title,'Sirácida 50, 24-26');
-  assert.equal(first.text.split('\n\n').length,3);
+  assert.equal(first.title,'Deuteronomio 8, 7-18');
+  assert.equal(first.text.split('\n\n').length,12);
   assert.equal(psalm.title,'Salmo 144, 2-3. 4-5. 6-7. 8-9. 10-11');
   const psalmParts=psalm.text.split('\n\n');
   assert.equal(psalmParts.length,11);
