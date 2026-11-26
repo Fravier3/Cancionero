@@ -36,9 +36,11 @@ export function initMassReadings({getDate,getFontSize,fontSteps}){
   }
 
   function setReadings(result,{preserve=false}={}){
-    const selected=preserve?selectedLabel:'';
+    const previousLabel=selectedLabel;
     readings=result?.readings||[];
-    selectedLabel=readings.some(reading=>reading.label===selected)?selected:'';
+    const keepSelection=preserve&&readings.some(reading=>reading.label===previousLabel);
+    const firstReading=readings.find(reading=>reading.label==='Primera lectura')??readings[0];
+    selectedLabel=keepSelection?previousLabel:firstReading?.label??'';
     choice.replaceChildren(...readings.map(reading=>{
       const button=document.createElement('button');
       button.type='button';
@@ -49,7 +51,7 @@ export function initMassReadings({getDate,getFontSize,fontSteps}){
       button.onclick=()=>{selectedLabel=reading.label;display();};
       return button;
     }));
-    display({resetScroll:!preserve});
+    display({resetScroll:!keepSelection});
   }
 
   function setStatus(message=''){

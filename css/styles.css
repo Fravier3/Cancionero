@@ -1295,7 +1295,13 @@ html,body,button,a,input,select,textarea,summary,.reader-lyrics{touch-action:pan
   .reader-columns .reader-gloria {padding-left:8px;}
 }
 
-#mass-open-readings {min-height:44px;padding-inline:12px;}
+#mass-open-readings {
+  flex: none;
+  border: 1px solid #ad7d25;
+  border-radius: 12px;
+  background: #f3c75e;
+  color: #171c4d;
+}
 .mass-readings {
   position:fixed;inset:0;margin:auto;width:min(680px,calc(100% - 24px));max-width:none;
   height:min(760px,calc(100% - max(24px,env(safe-area-inset-top) + env(safe-area-inset-bottom))));
