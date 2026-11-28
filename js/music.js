@@ -57,6 +57,7 @@ export function initMusicEditor({getDraft,onChanged}){
  const picker=document.querySelector('#chord-picker');
  const pickerTitle=document.querySelector('#chord-picker-title');
  const choices=document.querySelector('#chord-choices');
+ const remove=document.querySelector('#chord-picker-remove');
  const another=document.querySelector('#chord-picker-another');
  const cancel=document.querySelector('#chord-picker-cancel');
  let selection=null;
@@ -83,6 +84,7 @@ export function initMusicEditor({getDraft,onChanged}){
   const {word,existing}=selection;
   const current=existing?.chord;
   pickerTitle.textContent=current?`Cambiar acorde en «${word}»`:`Añadir acorde en «${word}»`;
+  remove.hidden=!existing;
   another.hidden=!existing;
   const options=current&&!CHORD_CHOICES.includes(current)?[current,...CHORD_CHOICES]:CHORD_CHOICES;
   choices.innerHTML=options.map(chord=>`<button type="button" class="btn secondary" data-chord-choice="${esc(chord)}"${chord===current?' aria-current="true"':''}${chord===(current||options[0])?' autofocus':''}>${esc(chord)}</button>`).join('');
@@ -124,19 +126,29 @@ export function initMusicEditor({getDraft,onChanged}){
   renderChoices();
   choices.querySelector('button').focus();
  });
- choices.addEventListener('click',e=>{
-  const button=e.target.closest('[data-chord-choice]');
-  if(!button||!picker.open)return;
+ function applyPickerChange(chord){
+  if(!picker.open)return;
   const {draft,lyrics,at,existing,token}=selection;
-  const chord=button.dataset.chordChoice;
   picker.close();
   if(draft!==getDraft()||lyrics!==draft.lyrics)return;
-  if(existing)existing.chord=chord;
-  else draft.chords.push({...at,chord});
+  if(chord===null){
+   const index=draft.chords.indexOf(existing);
+   if(index===-1)return;
+   draft.chords.splice(index,1);
+  }else if(existing){
+   existing.chord=chord;
+  }else{
+   draft.chords.push({...at,chord});
+  }
   render();
   onChanged();
   const {wordLine,wordNumber}=token.dataset;
   preview.querySelector(`[data-word-line="${wordLine}"][data-word-number="${wordNumber}"]`)?.focus({preventScroll:true});
+ }
+ remove.addEventListener('click',()=>applyPickerChange(null));
+ choices.addEventListener('click',e=>{
+  const button=e.target.closest('[data-chord-choice]');
+  if(button)applyPickerChange(button.dataset.chordChoice);
  });
  root.addEventListener('change',e=>{const row=e.target.closest('[data-chord]');if(!row)return;const d=getDraft(),i=Number(row.dataset.chord),c=d.chords[i],field=e.target.dataset.field;
   if(field==='chord')c.chord=e.target.value;else{
