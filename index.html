@@ -110,11 +110,8 @@
           </div>
 
           <details class="music-editor-panel"><summary>Editar acordes y vista previa</summary>
-            <p class="note">Escoge un acorde y toca una palabra en la vista previa para colocarlo encima. Puedes corregir la línea y la palabra con los campos. Las líneas vacías también cuentan.</p>
-            <div class="chord-placement"><label>Acorde<select id="new-chord" aria-label="Nuevo acorde"></select></label><label>Línea<input id="chord-line" type="number" inputmode="numeric" min="1" value="1" aria-label="Línea para el acorde"></label><label>Palabra<input id="chord-word" type="number" inputmode="numeric" min="1" value="1" aria-label="Palabra para el acorde"></label></div>
-            <p id="chord-target" class="note chord-target" role="status"></p>
-            <div class="chord-add-row"><button id="chord-add" type="button" class="btn secondary" disabled>Añadir acorde</button><button id="chord-another" type="button" class="btn ghost" hidden>Otro acorde</button></div>
             <h3>Vista previa · toca una palabra</h3><div id="music-preview" class="music-preview"></div><h3>Acordes añadidos</h3><div id="music-editor"></div>
+            <p id="chord-position-status" class="note" role="status"></p>
           </details>
           <button id="reprocess-photo" type="button" class="btn secondary block" hidden>Volver a procesar foto temporal</button>
           <div class="editor-actions">
@@ -258,6 +255,16 @@
   <div id="modal-root"></div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
+  <dialog id="chord-picker" class="chord-picker" aria-labelledby="chord-picker-title">
+    <div class="chord-picker-content">
+      <h2 id="chord-picker-title"></h2>
+      <div id="chord-choices" class="chord-choices"></div>
+      <div class="chord-picker-actions">
+        <button id="chord-picker-another" type="button" class="btn secondary" hidden>Añadir otro acorde</button>
+        <button id="chord-picker-cancel" type="button" class="btn ghost">Cancelar</button>
+      </div>
+    </div>
+  </dialog>
   <noscript><p style="padding:24px;font-family:sans-serif">Esta app necesita JavaScript para funcionar.</p></noscript>
 
   <script src="libs/dexie.min.js"></script>
